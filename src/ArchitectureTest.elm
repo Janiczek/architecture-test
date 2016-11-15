@@ -1,7 +1,7 @@
-module InteractionTest
+module ArchitectureTest
     exposing
         ( App
-        , InteractionTest
+        , ArchitectureTest
         , msgTest
         , msgTestWithPrecondition
         , invariantTest
@@ -10,7 +10,7 @@ module InteractionTest
 
 {-|
 TODO
-@docs App, InteractionTest
+@docs App, ArchitectureTest
 @docs msgTest, msgTestWithPrecondition, invariantTest
 @docs spec
 -}
@@ -22,7 +22,7 @@ import Expect exposing (Expectation)
 
 {-| TODO
 -}
-type InteractionTest msg model
+type ArchitectureTest msg model
     = MsgTest (MsgTestRecord msg model)
     | MsgTestWithPrecondition (MsgTestWithPreconditionRecord msg model)
     | InvariantTest (InvariantTestRecord msg model)
@@ -67,7 +67,7 @@ msgTest :
     String
     -> Fuzzer msg
     -> MsgTestFn msg model
-    -> InteractionTest msg model
+    -> ArchitectureTest msg model
 msgTest desc msgFuzzer fn =
     MsgTest
         { desc = desc
@@ -83,7 +83,7 @@ msgTestWithPrecondition :
     -> Fuzzer msg
     -> MsgTestPrecondition model
     -> MsgTestFn msg model
-    -> InteractionTest msg model
+    -> ArchitectureTest msg model
 msgTestWithPrecondition desc msgFuzzer precondition fn =
     MsgTestWithPrecondition
         { desc = desc
@@ -98,7 +98,7 @@ msgTestWithPrecondition desc msgFuzzer precondition fn =
 invariantTest :
     String
     -> InvariantTestFn msg model
-    -> InteractionTest msg model
+    -> ArchitectureTest msg model
 invariantTest desc fn =
     InvariantTest
         { desc = desc
@@ -120,7 +120,7 @@ spec :
     String
     -> Fuzzer msg
     -> App msg model
-    -> List (InteractionTest msg model)
+    -> List (ArchitectureTest msg model)
     -> Test
 spec name msgFuzzer app tests =
     let
@@ -128,12 +128,12 @@ spec name msgFuzzer app tests =
             Fuzz.list msgFuzzer
     in
         tests
-            |> List.map (interactionTestToTest msgListFuzzer app)
+            |> List.map (architectureTestToTest msgListFuzzer app)
             |> Test.describe name
 
 
-interactionTestToTest : Fuzzer (List msg) -> App msg model -> InteractionTest msg model -> Test
-interactionTestToTest msgListFuzzer app test =
+architectureTestToTest : Fuzzer (List msg) -> App msg model -> ArchitectureTest msg model -> Test
+architectureTestToTest msgListFuzzer app test =
     case test of
         MsgTest test ->
             msgTestToTest test msgListFuzzer app

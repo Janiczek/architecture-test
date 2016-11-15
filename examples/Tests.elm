@@ -1,6 +1,6 @@
 module Tests exposing (..)
 
-import InteractionTest exposing (InteractionTest, App)
+import ArchitectureTest exposing (ArchitectureTest, App)
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
 import Expect
@@ -11,7 +11,7 @@ import Random
 all : Test
 all =
     Test.describe "A Test Suite"
-        [ InteractionTest.spec "Vending Machine"
+        [ ArchitectureTest.spec "Vending Machine"
             msgFuzzer
             app
             [ addingAddsToCounter
@@ -41,12 +41,12 @@ msgFuzzer =
 
 
 type alias VendingTest =
-    InteractionTest VendingMachine.Msg VendingMachine.Model
+    ArchitectureTest VendingMachine.Msg VendingMachine.Model
 
 
 addingAddsToCounter : VendingTest
 addingAddsToCounter =
-    InteractionTest.msgTest
+    ArchitectureTest.msgTest
         "Adding adds to the counter"
         (Fuzz.map AddCoins (Fuzz.intRange 0 Random.maxInt))
     <|
@@ -62,7 +62,7 @@ addingAddsToCounter =
 
 cancellingReturnsAllMoney : VendingTest
 cancellingReturnsAllMoney =
-    InteractionTest.msgTest
+    ArchitectureTest.msgTest
         "Cancelling returns all money"
         (Fuzz.constant Cancel)
     <|
@@ -73,7 +73,7 @@ cancellingReturnsAllMoney =
 
 buyingUnderPriceDoesntBuy : VendingTest
 buyingUnderPriceDoesntBuy =
-    InteractionTest.msgTestWithPrecondition
+    ArchitectureTest.msgTestWithPrecondition
         "Trying to buy under price doesn't buy"
         (Fuzz.constant Buy)
         (\model -> model.currentCoins < model.productPrice && not model.isProductVended)
@@ -85,7 +85,7 @@ buyingUnderPriceDoesntBuy =
 
 takingCoinsTakesThem : VendingTest
 takingCoinsTakesThem =
-    InteractionTest.msgTest
+    ArchitectureTest.msgTest
         "Taking coins takes them"
         (Fuzz.constant TakeCoins)
     <|
@@ -96,7 +96,7 @@ takingCoinsTakesThem =
 
 takingProductTakesIt : VendingTest
 takingProductTakesIt =
-    InteractionTest.msgTest
+    ArchitectureTest.msgTest
         "Taking product takes it"
         (Fuzz.constant TakeProduct)
     <|
@@ -107,7 +107,7 @@ takingProductTakesIt =
 
 buyingAboveOrEqPriceVendsProduct : VendingTest
 buyingAboveOrEqPriceVendsProduct =
-    InteractionTest.msgTestWithPrecondition
+    ArchitectureTest.msgTestWithPrecondition
         "Trying to buy above or equal to price vends the product"
         (Fuzz.constant Buy)
         (\model -> model.currentCoins >= model.productPrice)
@@ -119,7 +119,7 @@ buyingAboveOrEqPriceVendsProduct =
 
 buyingAboveOrEqPriceMakesCoinsCounterEmpty : VendingTest
 buyingAboveOrEqPriceMakesCoinsCounterEmpty =
-    InteractionTest.msgTestWithPrecondition
+    ArchitectureTest.msgTestWithPrecondition
         "Trying to buy above or equal to price makes current coins counter empty"
         (Fuzz.constant Buy)
         (\model -> model.currentCoins >= model.productPrice)
@@ -131,7 +131,7 @@ buyingAboveOrEqPriceMakesCoinsCounterEmpty =
 
 buyingAboveOrEqPriceReturnsRestOfMoney : VendingTest
 buyingAboveOrEqPriceReturnsRestOfMoney =
-    InteractionTest.msgTestWithPrecondition
+    ArchitectureTest.msgTestWithPrecondition
         "Trying to buy above or equal to price returns rest of money"
         (Fuzz.constant Buy)
         (\model -> model.currentCoins >= model.productPrice)
@@ -147,7 +147,7 @@ buyingAboveOrEqPriceReturnsRestOfMoney =
 
 priceConstant : VendingTest
 priceConstant =
-    InteractionTest.invariantTest
+    ArchitectureTest.invariantTest
         "Price is constant"
     <|
         \oldModel msgs newModel ->
@@ -157,7 +157,7 @@ priceConstant =
 
 currentCoinsPositive : VendingTest
 currentCoinsPositive =
-    InteractionTest.invariantTest
+    ArchitectureTest.invariantTest
         "Current coins are always positive number"
     <|
         \oldModel msgs newModel ->
@@ -167,7 +167,7 @@ currentCoinsPositive =
 
 returnedCoinsPositive : VendingTest
 returnedCoinsPositive =
-    InteractionTest.invariantTest
+    ArchitectureTest.invariantTest
         "Returned coins are always positive number"
     <|
         \oldModel msgs newModel ->
@@ -175,7 +175,7 @@ returnedCoinsPositive =
                 |> Expect.atLeast 0
 
 
-app : InteractionTest.App VendingMachine.Msg VendingMachine.Model
+app : ArchitectureTest.App VendingMachine.Msg VendingMachine.Model
 app =
     { update = VendingMachine.update
     , init = VendingMachine.init
