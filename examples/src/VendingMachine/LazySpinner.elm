@@ -39,7 +39,9 @@ update msg model =
                 in
                     { model
                         | currentCoins = 0
-                        , isProductVended = willFall
+                        , isProductVended =
+                            willFall
+                            -- here's the bug
                         , returnedCoins = model.currentCoins - model.productPrice + model.returnedCoins
                         , vendedProductsCounter = newCounter
                     }

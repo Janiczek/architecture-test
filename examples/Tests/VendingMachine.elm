@@ -22,6 +22,7 @@ import Fuzz exposing (Fuzzer)
 -- TODO what about apps with Cmd ?
 -- TODO what about apps with subscriptions ?
 -- TODO what about apps with view ? can we at least export a debug file for the 0.18 debugger?
+-- TODO do we need the history of Msgs in msgTest?
 -- Bonus: view function (independent of the model+update) for the Msgs and Model - animated scenario viewer
 
 
