@@ -32,7 +32,7 @@ tests =
         [ Good.tests msgFuzzer specTests
           --, Scrooge.tests msgFuzzer specTests
           --, Jammed.tests msgFuzzer specTests
-          --, LazySpinner.tests msgFuzzer specTests
+        , LazySpinner.tests msgFuzzer specTests
         ]
 
 

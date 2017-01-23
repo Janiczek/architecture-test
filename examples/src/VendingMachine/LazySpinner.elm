@@ -40,7 +40,7 @@ update msg model =
                     { model
                         | currentCoins = 0
                         , isProductVended =
-                            willFall
+                            model.isProductVended || willFall
                             -- here's the bug
                         , returnedCoins = model.currentCoins - model.productPrice + model.returnedCoins
                         , vendedProductsCounter = newCounter
