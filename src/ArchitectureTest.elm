@@ -3,9 +3,9 @@ module ArchitectureTest
         ( TestedApp
         , TestedModel(..)
         , TestedUpdate(..)
+        , invariantTest
         , msgTest
         , msgTestWithPrecondition
-        , invariantTest
         , orthogonalityTest
         )
 
@@ -13,11 +13,14 @@ module ArchitectureTest
 interactions (using fuzzed lists of Msgs).
 
 This means:
-- start with a model (can be constant/fuzzed/chosen from a collection)
-- generate random Msgs (ie. "what the user would do")
-- apply them to the model
-- test a property of the model (ie. "Cancel Msg sets currentCoins to 0")
 
+  - start with a model (can be fuzzed, see `TestedModel` below)
+  - generate random Msgs (ie. "what the user would do")
+  - apply them to the model
+  - test a property of the model (ie. "Cancel Msg sets currentCoins to 0")
+
+**You get the nice property of fuzz tests that this kind of testing
+will show you the minimal Msg sequence to provoke a bug.**
 
 For all the code examples in docs below, these definitions are
 going to be used:
@@ -37,31 +40,15 @@ going to be used:
         | TakeProduct
 
     init : Model
-    init =
-        -- not defined here
-
     update : Msg -> Model -> Model
-    update msg model =
-        -- not defined here
+    -- both not defined here
 
-    -- Msg fuzzers
-
-    addCoinsFuzzer : Fuzzer Msg
-    addCoinsFuzzer =
-        Fuzz.int
-            |> Fuzz.map AddCoins
-
-    cancelFuzzer : Fuzzer Msg
-    cancelFuzzer =
-        Fuzz.constant Cancel
-
-    buyFuzzer : Fuzzer Msg
-    buyFuzzer =
-        Fuzz.constant Buy
-
-    takeProductFuzzer : Fuzzer Msg
-    takeProductFuzzer =
-        Fuzz.constant TakeProduct
+    app : TestedApp Model Msg
+    app =
+        { model = ConstantModel init
+        , update = BeginnerUpdate update
+        , msgFuzzer = msgFuzzer
+        }
 
     msgFuzzer : Fuzzer Msg
     msgFuzzer =
@@ -72,25 +59,31 @@ going to be used:
             , ( 1, takeProductFuzzer )
             ]
 
-    app : TestedApp Model Msg
-    app =
-        { model = ConstantModel init
-        , update = BeginnerUpdate update
-        , msgFuzzer = msgFuzzer
-        }
+    addCoinsFuzzer : Fuzzer Msg
+    addCoinsFuzzer =
+        Fuzz.int
+            |> Fuzz.map AddCoins
 
+    cancelFuzzer : Fuzzer Msg
+    cancelFuzzer =
+        Fuzz.constant Cancel
+
+    -- similarly for buyFuzzer and takeProductFuzzer
 
 # App specifications
+
 @docs TestedApp, TestedModel, TestedUpdate
 
+
 # Tests
+
 @docs msgTest, msgTestWithPrecondition, invariantTest, orthogonalityTest
 
 -}
 
+import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
-import Expect exposing (Expectation)
 import Tuple
 
 
@@ -105,6 +98,7 @@ in common: Model, update function and Msgs.
 
 Note that for some tests you can eg. make the Msg fuzzer prefer
 certain Msgs more if you need to test them more extensively.
+
 -}
 type alias TestedApp model msg =
     { model : TestedModel model
@@ -125,8 +119,14 @@ type TestedModel model
 {-| Main applications can be of two types: beginner (no Cmds)
 and normal (Cmds present).
 
-`update` functions with custom type signatures currently not
-supported - if that's something you need, [tell me!](https://github.com/Janiczek/elm-architecture-test/issues/new)
+For custom `update` functions returning eg. triples etc.,
+just use `BeginnerUpdate` with a function that returns just the model part of
+the result:
+
+    update : Msg -> Model -> {model : Model, cmd : Cmd Msg, outMsg : OutMsg}
+
+    BeginnerUpdate (\msg model -> update msg model |> .model)
+
 -}
 type TestedUpdate model msg
     = BeginnerUpdate (msg -> model -> model)
@@ -138,10 +138,18 @@ after that specific Msg is applied.
 
     cancelReturnsMoney : Test
     cancelReturnsMoney =
-        msgTest "Cancelling returns all input money" app cancelFuzzer <|
+        msgTest
+            "Cancelling returns all input money"
+            app
+            cancelFuzzer
+        <|
             \_ _ _ _ finalModel ->
                 finalModel.currentCoins
                     |> Expect.equal 0
+
+The test function's arguments are:
+
+    init model -> random Msgs -> model before tested Msg -> tested Msg -> final model
 
 -}
 msgTest :
@@ -175,12 +183,17 @@ msgTest description app specificMsgFuzzer testFn =
 
     buyingAbovePriceVendsProduct : Test
     buyingAbovePriceVendsProduct =
-        msgTestWithPrecondition "Buying above price vends the product" app buyFuzzer
+        msgTestWithPrecondition
+            "Buying above price vends the product"
+            app
+            buyFuzzer
             (\model -> model.currentCoins >= model.productPrice)
-            <|
+        <|
             \_ _ _ _ finalModel ->
                 finalModel.isProductVended
                     |> Expect.true "Product should be vended after trying to buy with enough money"
+
+The precondition acts on the "model before specific Msg" (see `msgTest` docs).
 
 -}
 msgTestWithPrecondition :
@@ -218,10 +231,17 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
 
     priceConstant : Test
     priceConstant =
-        invariantTest "Price is constant" app <|
+        invariantTest
+            "Price is constant"
+            app
+        <|
             \initModel _ finalModel ->
                 finalModel.productPrice
                     |> Expect.equal initModel.productPrice
+
+The test function's arguments are:
+
+    init model -> random Msgs -> final model
 
 -}
 invariantTest :
@@ -246,22 +266,24 @@ invariantTest description app testFn =
                 testFn initModel msgs finalModel
 
 
-{-| Tests that no other Msg than the one specified changes a part
+{-| Tests that no other Msg than the one specified changes a given part
 of the model.
 
-Can be thought of in this way:
+The next example can be thought of in this way:
 
-> If the Msg is not Cancel, the amount of current coins can't decrease.
+> If the Msg is not Cancel, the amount of current coins shouldn't decrease.
 
     onlyCancelRemovesCoins : Test
     onlyCancelRemovesCoins =
-        orthogonalityTest "Only 'Cancel' removes coins"
+        orthogonalityTest
+            "Only 'Cancel' removes coins"
             app
             (\msg -> msg /= Cancel)
         <|
             \_ _ modelBeforeMsg _ finalModel ->
                 finalModel.currentCoins
                     |> Expect.atLeast modelBeforeMsg.currentCoins
+
 
     -- or with union type with data:
 
@@ -270,6 +292,7 @@ Can be thought of in this way:
         case msg of
             AddCoins _ ->
                 True
+
             _ ->
                 False
 
@@ -282,6 +305,10 @@ Can be thought of in this way:
             \_ _ modelBeforeMsg _ finalModel ->
                 finalModel.currentCoins
                     |> Expect.atMost modelBeforeMsg.currentCoins
+
+The Msg condition acts on the "specific Msg" (see `msgTest` docs).
+Note that you don't specify its fuzzer - it gets created with
+the same fuzzer as all the other Msgs.
 
 -}
 orthogonalityTest :
@@ -318,6 +345,8 @@ orthogonalityTest description app msgCondition testFn =
 -- helpers
 
 
+{-| Create a fuzzer from the Model specification.
+-}
 testedModelToFuzzer : TestedModel model -> Fuzzer model
 testedModelToFuzzer testedModel =
     case testedModel of
@@ -331,6 +360,8 @@ testedModelToFuzzer testedModel =
             oneOf modelList
 
 
+{-| Prepare the `update` function for use in the tests, ie. drop Cmds.
+-}
 transformUpdate : TestedUpdate model msg -> (msg -> model -> model)
 transformUpdate testedUpdate =
     case testedUpdate of
@@ -339,9 +370,11 @@ transformUpdate testedUpdate =
 
         NormalUpdate update ->
             -- ignore the Cmd
-            (\msg model -> update msg model |> Tuple.first)
+            \msg model -> update msg model |> Tuple.first
 
 
+{-| Fuzzer that chooses a value from a collection of values.
+-}
 oneOf : List a -> Fuzzer a
 oneOf list =
     -- Why isn't this in elm-test?
