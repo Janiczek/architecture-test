@@ -1,7 +1,7 @@
 {
     "version": "1.0.0",
-    "summary": "helpful summary of your project, less than 80 characters",
-    "repository": "https://github.com/user/project.git",
+    "summary": "A library for fuzz testing TEA models by simulating user interactions",
+    "repository": "https://github.com/Janiczek/elm-architecture-test.git",
     "license": "BSD3",
     "source-directories": [
         "src/"
@@ -10,7 +10,7 @@
         "ArchitectureTest"
     ],
     "dependencies": {
-        "elm-community/elm-test": "3.1.0 <= v < 4.0.0",
+        "elm-community/elm-test": "4.0.0 <= v < 5.0.0",
         "elm-lang/core": "5.0.0 <= v < 6.0.0",
         "elm-lang/html": "2.0.0 <= v < 3.0.0"
     },

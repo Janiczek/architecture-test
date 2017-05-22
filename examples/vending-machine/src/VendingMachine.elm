@@ -1,16 +1,23 @@
-module VendingMachine.Good exposing (init, update, Model)
+module VendingMachine exposing (Model, Msg(..), init, update)
 
-import VendingMachine exposing (Msg(..))
+
+type Msg
+    = AddCoins Int
+    | Cancel
+    | Buy
+    | TakeProduct
 
 
 type alias Model =
-    VendingMachine.Model {}
+    { currentCoins : Int
+    , productPrice : Int
+    , isProductVended : Bool
+    }
 
 
 init : Model
 init =
     { currentCoins = 0
-    , returnedCoins = 0
     , productPrice = 25
     , isProductVended = False
     }
@@ -23,26 +30,16 @@ update msg model =
             { model | currentCoins = model.currentCoins + amount }
 
         Cancel ->
-            { model
-                | currentCoins = 0
-                , returnedCoins = model.returnedCoins + model.currentCoins
-            }
+            { model | currentCoins = 0 }
 
         Buy ->
             if model.currentCoins >= model.productPrice then
                 { model
                     | currentCoins = 0
                     , isProductVended = True
-                    , returnedCoins = model.currentCoins - model.productPrice + model.returnedCoins
                 }
             else
-                { model
-                    | currentCoins = 0
-                    , returnedCoins = model.currentCoins
-                }
-
-        TakeCoins ->
-            { model | returnedCoins = 0 }
+                { model | currentCoins = 0 }
 
         TakeProduct ->
             { model | isProductVended = False }
