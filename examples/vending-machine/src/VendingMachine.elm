@@ -39,7 +39,7 @@ update msg model =
                     , isProductVended = True
                 }
             else
-                { model | currentCoins = 0 }
+                model
 
         TakeProduct ->
             { model | isProductVended = False }

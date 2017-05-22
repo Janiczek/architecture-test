@@ -58,7 +58,7 @@ addingAddsToCounter =
         app
         addCoinsFuzzer
     <|
-        \initModel msgs modelBeforeMsg msg finalModel ->
+        \_ _ modelBeforeMsg msg finalModel ->
             case msg of
                 AddCoins amount ->
                     finalModel.currentCoins
@@ -75,7 +75,7 @@ cancellingReturnsAllMoney =
         app
         cancelFuzzer
     <|
-        \initModel msgs modelBeforeMsg msg finalModel ->
+        \_ _ _ _ finalModel ->
             finalModel.currentCoins
                 |> Expect.equal 0
 
@@ -88,7 +88,7 @@ buyingUnderPriceDoesntBuy =
         buyFuzzer
         (\model -> model.currentCoins < model.productPrice && not model.isProductVended)
     <|
-        \initModel msgs modelBeforeMsg msg finalModel ->
+        \_ _ _ _ finalModel ->
             finalModel.isProductVended
                 |> Expect.false "Product shouldn't be vended when buying with not enough money"
 
@@ -100,7 +100,7 @@ takingProductTakesIt =
         app
         takeProductFuzzer
     <|
-        \initModel msgs modelBeforeMsg msg finalModel ->
+        \_ _ _ _ finalModel ->
             finalModel.isProductVended
                 |> Expect.false "Product shouldn't be vended after taking it"
 
@@ -113,7 +113,7 @@ buyingAboveOrEqPriceVendsProduct =
         buyFuzzer
         (\model -> model.currentCoins >= model.productPrice)
     <|
-        \initModel msgs modelBeforeMsg msg finalModel ->
+        \_ _ _ _ finalModel ->
             finalModel.isProductVended
                 |> Expect.true "Product should be vended when buying with enough money"
 
@@ -126,7 +126,7 @@ buyingAboveOrEqPriceMakesCoinsCounterEmpty =
         buyFuzzer
         (\model -> model.currentCoins >= model.productPrice)
     <|
-        \initModel msgs modelBeforeMsg msg finalModel ->
+        \_ _ _ _ finalModel ->
             finalModel.currentCoins
                 |> Expect.equal 0
 
@@ -137,7 +137,7 @@ priceConstant =
         "Price is constant"
         app
     <|
-        \initModel msgs finalModel ->
+        \initModel _ finalModel ->
             finalModel.productPrice
                 |> Expect.equal initModel.productPrice
 
@@ -148,6 +148,28 @@ currentCoinsPositive =
         "Current coins are always positive number"
         app
     <|
-        \initModel msgs finalModel ->
+        \_ _ finalModel ->
             finalModel.currentCoins
                 |> Expect.atLeast 0
+
+
+isAddCoins : Msg -> Bool
+isAddCoins msg =
+    case msg of
+        AddCoins _ ->
+            True
+
+        _ ->
+            False
+
+
+onlyAddCoinsAddsCoins : Test
+onlyAddCoinsAddsCoins =
+    ArchitectureTest.orthogonalityTest
+        "Only 'AddCoins' adds coins"
+        app
+        (\msg -> not (isAddCoins msg))
+    <|
+        \_ _ modelBeforeMsg _ finalModel ->
+            finalModel.currentCoins
+                |> Expect.atMost modelBeforeMsg.currentCoins
