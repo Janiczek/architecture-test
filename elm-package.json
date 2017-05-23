@@ -7,7 +7,8 @@
         "src/"
     ],
     "exposed-modules": [
-        "ArchitectureTest"
+        "ArchitectureTest",
+        "ArchitectureTest.Types"
     ],
     "dependencies": {
         "elm-community/elm-test": "4.0.0 <= v < 5.0.0",
