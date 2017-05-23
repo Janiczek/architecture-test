@@ -11,7 +11,8 @@ module Tests.VendingMachine
         , takingProductTakesIt
         )
 
-import ArchitectureTest exposing (TestedApp, TestedModel(ConstantModel), TestedUpdate(BeginnerUpdate))
+import ArchitectureTest.Types exposing (..)
+import ArchitectureTest
 import Expect
 import Fuzz exposing (Fuzzer)
 import Random.Pcg as Random
@@ -19,34 +20,34 @@ import Test exposing (Test)
 import VendingMachine exposing (Model, Msg(..), init, update)
 
 
-addCoinsFuzzer : Fuzzer Msg
-addCoinsFuzzer =
+addCoins : Fuzzer Msg
+addCoins =
     Fuzz.intRange 0 Random.maxInt
         |> Fuzz.map AddCoins
 
 
-cancelFuzzer : Fuzzer Msg
-cancelFuzzer =
+cancel : Fuzzer Msg
+cancel =
     Fuzz.constant Cancel
 
 
-buyFuzzer : Fuzzer Msg
-buyFuzzer =
+buy : Fuzzer Msg
+buy =
     Fuzz.constant Buy
 
 
-takeProductFuzzer : Fuzzer Msg
-takeProductFuzzer =
+takeProduct : Fuzzer Msg
+takeProduct =
     Fuzz.constant TakeProduct
 
 
-msgFuzzer : Fuzzer Msg
-msgFuzzer =
-    Fuzz.frequency
-        [ ( 1, addCoinsFuzzer )
-        , ( 1, cancelFuzzer )
-        , ( 1, buyFuzzer )
-        , ( 1, takeProductFuzzer )
+msg : Fuzzer Msg
+msg =
+    ArchitectureTest.oneOfMsgs
+        [ addCoins
+        , cancel
+        , buy
+        , takeProduct
         ]
 
 
@@ -54,7 +55,7 @@ app : TestedApp Model Msg
 app =
     { model = ConstantModel init
     , update = BeginnerUpdate update
-    , msgFuzzer = msgFuzzer
+    , msgFuzzer = msg
     }
 
 
@@ -67,7 +68,7 @@ addingAddsToCounter =
     ArchitectureTest.msgTest
         "Adding adds to the counter"
         app
-        addCoinsFuzzer
+        addCoins
     <|
         \_ _ modelBeforeMsg msg finalModel ->
             case msg of
@@ -84,7 +85,7 @@ cancellingReturnsAllMoney =
     ArchitectureTest.msgTest
         "Cancelling returns all money"
         app
-        cancelFuzzer
+        cancel
     <|
         \_ _ _ _ finalModel ->
             finalModel.currentCoins
@@ -96,7 +97,7 @@ buyingUnderPriceDoesntBuy =
     ArchitectureTest.msgTestWithPrecondition
         "Trying to buy under price doesn't buy"
         app
-        buyFuzzer
+        buy
         (\model -> model.currentCoins < model.productPrice && not model.isProductVended)
     <|
         \_ _ _ _ finalModel ->
@@ -109,7 +110,7 @@ takingProductTakesIt =
     ArchitectureTest.msgTest
         "Taking product takes it"
         app
-        takeProductFuzzer
+        takeProduct
     <|
         \_ _ _ _ finalModel ->
             finalModel.isProductVended
@@ -121,7 +122,7 @@ buyingAboveOrEqPriceVendsProduct =
     ArchitectureTest.msgTestWithPrecondition
         "Trying to buy above or equal to price vends the product"
         app
-        buyFuzzer
+        buy
         (\model -> model.currentCoins >= model.productPrice)
     <|
         \_ _ _ _ finalModel ->
@@ -134,7 +135,7 @@ buyingAboveOrEqPriceMakesCoinsCounterEmpty =
     ArchitectureTest.msgTestWithPrecondition
         "Trying to buy above or equal to price makes current coins counter empty"
         app
-        buyFuzzer
+        buy
         (\model -> model.currentCoins >= model.productPrice)
     <|
         \_ _ _ _ finalModel ->
@@ -164,22 +165,21 @@ currentCoinsPositive =
                 |> Expect.atLeast 0
 
 
-isAddCoins : Msg -> Bool
-isAddCoins msg =
-    case msg of
-        AddCoins _ ->
-            True
-
-        _ ->
-            False
+msgWithoutAddCoins : Fuzzer Msg
+msgWithoutAddCoins =
+    ArchitectureTest.oneOfMsgs
+        [ cancel
+        , buy
+        , takeProduct
+        ]
 
 
 onlyAddCoinsAddsCoins : Test
 onlyAddCoinsAddsCoins =
-    ArchitectureTest.orthogonalityTest
+    ArchitectureTest.msgTest
         "Only 'AddCoins' adds coins"
         app
-        (\msg -> not (isAddCoins msg))
+        msgWithoutAddCoins
     <|
         \_ _ modelBeforeMsg _ finalModel ->
             finalModel.currentCoins

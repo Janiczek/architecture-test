@@ -1,12 +1,9 @@
 module ArchitectureTest
     exposing
-        ( TestedApp
-        , TestedModel(..)
-        , TestedUpdate(..)
-        , invariantTest
+        ( invariantTest
         , msgTest
         , msgTestWithPrecondition
-        , orthogonalityTest
+        , oneOfMsgs
         )
 
 {-| A library for **fuzz testing TEA models** by simulating user
@@ -14,7 +11,7 @@ interactions (using fuzzed lists of Msgs).
 
 This means:
 
-  - start with a model (can be fuzzed, see `TestedModel` below)
+  - start with a model (can be fuzzed, see `TestedModel` in Types module)
   - generate random Msgs (ie. "what the user would do")
   - apply them to the model
   - test a property of the model (ie. "Cancel Msg sets currentCoins to 0")
@@ -38,102 +35,67 @@ going to be used:
         | TakeProduct
 
     init : Model
-
     update : Msg -> Model -> Model
-
-
     -- both not defined here
 
     app : TestedApp Model Msg
     app =
         { model = ConstantModel init
         , update = BeginnerUpdate update
-        , msgFuzzer = msgFuzzer
+        , msgFuzzer = msg
         }
 
-    msgFuzzer : Fuzzer Msg
-    msgFuzzer =
-        Fuzz.frequency
-            [ ( 1, addCoinsFuzzer )
-            , ( 1, cancelFuzzer )
-            , ( 1, buyFuzzer )
-            , ( 1, takeProductFuzzer )
+    msg : Fuzzer Msg
+    msg =
+        ArchitectureTest.oneOfMsgs
+            [ addCoins
+            , cancel
+            , buy
+            , takeProduct
             ]
 
-    addCoinsFuzzer : Fuzzer Msg
-    addCoinsFuzzer =
+    addCoins : Fuzzer Msg
+    addCoins =
         Fuzz.int
             |> Fuzz.map AddCoins
 
-    cancelFuzzer : Fuzzer Msg
-    cancelFuzzer =
+    cancel : Fuzzer Msg
+    cancel =
         Fuzz.constant Cancel
 
+    buy : Fuzzer Msg
+    buy =
+        Fuzz.constant Buy
 
-    -- similarly for buyFuzzer and takeProductFuzzer
-
-
-# App specifications
-
-@docs TestedApp, TestedModel, TestedUpdate
+    takeProduct : Fuzzer Msg
+    takeProduct =
+        Fuzz.constant TakeProduct
 
 
 # Tests
 
-@docs msgTest, msgTestWithPrecondition, invariantTest, orthogonalityTest
+@docs msgTest, msgTestWithPrecondition, invariantTest
+
+# Helpers
+
+@docs oneOfMsgs
 
 -}
 
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import ArchitectureTest.Internal exposing (..)
+import ArchitectureTest.Types exposing (..)
 import Test exposing (Test)
-import Tuple
 
 
 {- TODO would a `Fuzzer (List msg)` escape hatch be worth having
    here? (ie. smart Msg list building based on previously generated
    values, instead of "dumb" Fuzz.list)
 -}
-
-
-{-| All of these "architecture tests" are going to have something
-in common: Model, update function and Msgs.
-
-Note that for some tests you can eg. make the Msg fuzzer prefer
-certain Msgs more if you need to test them more extensively.
-
+{- TODO what about running the expectations after every Msg, like in
+   https://github.com/rtfeldman/test-update/blob/master/src/Test/Update.elm ?
 -}
-type alias TestedApp model msg =
-    { model : TestedModel model
-    , update : TestedUpdate model msg
-    , msgFuzzer : Fuzzer msg
-    }
-
-
-{-| The strategy for choosing an init model to which the Msgs
-will be applied.
--}
-type TestedModel model
-    = ConstantModel model
-    | FuzzedModel (Fuzzer model)
-    | OneOfModels (List model)
-
-
-{-| Main applications can be of two types: beginner (no Cmds)
-and normal (Cmds present).
-
-For custom `update` functions returning eg. triples etc.,
-just use `BeginnerUpdate` with a function that returns just the model part of
-the result:
-
-    update : Msg -> Model -> {model : Model, cmd : Cmd Msg, outMsg : OutMsg}
-
-    BeginnerUpdate (\msg model -> update msg model |> .model)
-
--}
-type TestedUpdate model msg
-    = BeginnerUpdate (msg -> model -> model)
-    | NormalUpdate (msg -> model -> ( model, Cmd msg ))
 
 
 {-| Tests that a condition holds for a randomly generated Model
@@ -179,7 +141,9 @@ msgTest description app specificMsgFuzzer testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-            testFn initModel msgs modelAfterMsgs msg finalModel
+                customFailure
+                    (testFn initModel msgs modelAfterMsgs msg finalModel)
+                    (failureStringCommon initModel msgs modelAfterMsgs msg finalModel)
 
 
 {-| Similar to msgTest, but only gets run when a precondition holds.
@@ -224,10 +188,12 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-            if precondition finalModel then
-                testFn initModel msgs modelAfterMsgs msg finalModel
-            else
-                Expect.pass
+                if precondition modelAfterMsgs then
+                    customFailure
+                        (testFn initModel msgs modelAfterMsgs msg finalModel)
+                        (failureStringCommon initModel msgs modelAfterMsgs msg finalModel)
+                else
+                    Expect.pass
 
 
 {-| Tests that a property holds no matter what Msgs we applied.
@@ -266,125 +232,15 @@ invariantTest description app testFn =
                 finalModel =
                     List.foldl update initModel msgs
             in
-            testFn initModel msgs finalModel
+                customFailure
+                    (testFn initModel msgs finalModel)
+                    (failureStringInvariant initModel msgs finalModel)
 
 
-{-| TODO: the current implementation won't work! If it gets wrong Msg
-(predicate -> False) from the fuzzer, it just passes, instead it should try
-to generate another Msg until it succeeds (predicate -> True), and then use that.
-
-Tests that no other Msg than the one specified changes a given part
-of the model.
-
-The next example can be thought of in this way:
-
-> If the Msg is not Cancel, the amount of current coins shouldn't decrease.
-
-    onlyCancelRemovesCoins : Test
-    onlyCancelRemovesCoins =
-        orthogonalityTest
-            "Only 'Cancel' removes coins"
-            app
-            (\msg -> msg /= Cancel)
-        <|
-            \_ _ modelBeforeMsg _ finalModel ->
-                finalModel.currentCoins
-                    |> Expect.atLeast modelBeforeMsg.currentCoins
-
-
-    -- or with union type with data:
-
-    isAddCoins : Msg -> Bool
-    isAddCoins msg =
-        case msg of
-            AddCoins _ ->
-                True
-
-            _ ->
-                False
-
-    onlyAddCoinsAddsCoins : Test
-    onlyAddCoinsAddsCoins =
-        orthogonalityTest "Only 'AddCoins' adds coins"
-            app
-            (\msg -> not (isAddCoins msg))
-        <|
-            \_ _ modelBeforeMsg _ finalModel ->
-                finalModel.currentCoins
-                    |> Expect.atMost modelBeforeMsg.currentCoins
-
-The Msg condition acts on the "specific Msg" (see `msgTest` docs).
-Note that you don't specify its fuzzer - it gets created with
-the same fuzzer as all the other Msgs.
-
+{-| Fuzzer that chooses a Msg from a collection of Msg fuzzers.
 -}
-orthogonalityTest :
-    String
-    -> TestedApp model msg
-    -> (msg -> Bool)
-    -> (model -> List msg -> model -> msg -> model -> Expectation)
-    -> Test
-orthogonalityTest description app msgCondition testFn =
-    Test.fuzz3
-        (testedModelToFuzzer app.model)
-        (Fuzz.list app.msgFuzzer)
-        app.msgFuzzer
-        description
-    <|
-        \initModel msgs msg ->
-            let
-                update =
-                    transformUpdate app.update
-
-                modelAfterMsgs =
-                    List.foldl update initModel msgs
-
-                finalModel =
-                    update msg modelAfterMsgs
-            in
-            if msgCondition msg then
-                testFn initModel msgs modelAfterMsgs msg finalModel
-            else
-                Expect.pass
-
-
-
--- helpers
-
-
-{-| Create a fuzzer from the Model specification.
--}
-testedModelToFuzzer : TestedModel model -> Fuzzer model
-testedModelToFuzzer testedModel =
-    case testedModel of
-        ConstantModel model ->
-            Fuzz.constant model
-
-        FuzzedModel modelFuzzer ->
-            modelFuzzer
-
-        OneOfModels modelList ->
-            oneOf modelList
-
-
-{-| Prepare the `update` function for use in the tests, ie. drop Cmds.
--}
-transformUpdate : TestedUpdate model msg -> (msg -> model -> model)
-transformUpdate testedUpdate =
-    case testedUpdate of
-        BeginnerUpdate update ->
-            update
-
-        NormalUpdate update ->
-            -- ignore the Cmd
-            \msg model -> update msg model |> Tuple.first
-
-
-{-| Fuzzer that chooses a value from a collection of values.
--}
-oneOf : List a -> Fuzzer a
-oneOf list =
-    -- Why isn't this in elm-test?
+oneOfMsgs : List (Fuzzer msg) -> Fuzzer msg
+oneOfMsgs list =
     list
-        |> List.map (\x -> ( 1, Fuzz.constant x ))
+        |> List.map (\x -> ( 1, x ))
         |> Fuzz.frequency
