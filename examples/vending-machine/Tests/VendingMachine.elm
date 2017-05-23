@@ -1,4 +1,15 @@
-module Tests.VendingMachine exposing (..)
+module Tests.VendingMachine
+    exposing
+        ( addingAddsToCounter
+        , buyingAboveOrEqPriceMakesCoinsCounterEmpty
+        , buyingAboveOrEqPriceVendsProduct
+        , buyingUnderPriceDoesntBuy
+        , cancellingReturnsAllMoney
+        , currentCoinsPositive
+        , onlyAddCoinsAddsCoins
+        , priceConstant
+        , takingProductTakesIt
+        )
 
 import ArchitectureTest exposing (TestedApp, TestedModel(ConstantModel), TestedUpdate(BeginnerUpdate))
 import Expect

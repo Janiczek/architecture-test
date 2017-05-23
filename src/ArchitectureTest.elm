@@ -25,8 +25,6 @@ will show you the minimal Msg sequence to provoke a bug.**
 For all the code examples in docs below, these definitions are
 going to be used:
 
-    -- Vending Machine
-
     type alias Model =
         { currentCoins : Int
         , productPrice : Int
@@ -40,7 +38,10 @@ going to be used:
         | TakeProduct
 
     init : Model
+
     update : Msg -> Model -> Model
+
+
     -- both not defined here
 
     app : TestedApp Model Msg
@@ -68,7 +69,9 @@ going to be used:
     cancelFuzzer =
         Fuzz.constant Cancel
 
+
     -- similarly for buyFuzzer and takeProductFuzzer
+
 
 # App specifications
 
@@ -176,7 +179,7 @@ msgTest description app specificMsgFuzzer testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-                testFn initModel msgs modelAfterMsgs msg finalModel
+            testFn initModel msgs modelAfterMsgs msg finalModel
 
 
 {-| Similar to msgTest, but only gets run when a precondition holds.
@@ -221,10 +224,10 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-                if precondition finalModel then
-                    testFn initModel msgs modelAfterMsgs msg finalModel
-                else
-                    Expect.pass
+            if precondition finalModel then
+                testFn initModel msgs modelAfterMsgs msg finalModel
+            else
+                Expect.pass
 
 
 {-| Tests that a property holds no matter what Msgs we applied.
@@ -263,10 +266,14 @@ invariantTest description app testFn =
                 finalModel =
                     List.foldl update initModel msgs
             in
-                testFn initModel msgs finalModel
+            testFn initModel msgs finalModel
 
 
-{-| Tests that no other Msg than the one specified changes a given part
+{-| TODO: the current implementation won't work! If it gets wrong Msg
+(predicate -> False) from the fuzzer, it just passes, instead it should try
+to generate another Msg until it succeeds (predicate -> True), and then use that.
+
+Tests that no other Msg than the one specified changes a given part
 of the model.
 
 The next example can be thought of in this way:
@@ -335,10 +342,10 @@ orthogonalityTest description app msgCondition testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-                if msgCondition msg then
-                    testFn initModel msgs modelAfterMsgs msg finalModel
-                else
-                    Expect.pass
+            if msgCondition msg then
+                testFn initModel msgs modelAfterMsgs msg finalModel
+            else
+                Expect.pass
 
 
 
