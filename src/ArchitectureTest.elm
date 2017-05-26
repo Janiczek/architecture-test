@@ -3,7 +3,6 @@ module ArchitectureTest
         ( invariantTest
         , msgTest
         , msgTestWithPrecondition
-        , oneOfMsgs
         )
 
 {-| A library for **fuzz testing TEA models** by simulating user
@@ -19,60 +18,25 @@ This means:
 **You get the nice property of fuzz tests that this kind of testing
 will show you the minimal Msg sequence to provoke a bug.**
 
-For all the code examples in docs below, these definitions are
-going to be used:
+The `app` in doc examples below is:
 
-    type alias Model =
-        { currentCoins : Int
-        , productPrice : Int
-        , isProductVended : Bool
-        }
-
-
-    type Msg
-        = AddCoins Int
-        | Cancel
-        | Buy
-        | TakeProduct
+    { model = ConstantModel model
+    , update = BeginnerUpdate update
+    , msgFuzzer =
+          Fuzz.oneOf
+              [ Fuzz.int 0 50 |> Fuzz.map AddCoins
+              , Fuzz.constant Cancel
+              , Fuzz.constant Buy
+              , Fuzz.constant TakeProduct
+              ]
+    }
 
 
-    init : Model
-    update : Msg -> Model -> Model
-    -- both not defined here
-
-
-    app : TestedApp Model Msg
-    app =
-        { model = ConstantModel init
-        , update = BeginnerUpdate update
-        , msgFuzzer = msg
-        }
-
-
-    msg : Fuzzer Msg
-    msg =
-        ArchitectureTest.oneOfMsgs
-            [ addCoins
-            , cancel
-            , buy
-            , takeProduct
-            ]
-
-
-    addCoins    = Fuzz.int |> Fuzz.map AddCoins
-    cancel      = Fuzz.constant Cancel
-    buy         = Fuzz.constant Buy
-    takeProduct = Fuzz.constant TakeProduct
-
+For a complete code example, see the examples/ directory of the repo.
 
 # Tests
 
 @docs msgTest, msgTestWithPrecondition, invariantTest
-
-
-# Helpers
-
-@docs oneOfMsgs
 
 -}
 
@@ -100,7 +64,7 @@ after that specific Msg is applied.
         msgTest
             "Cancelling returns all input money"
             app
-            cancelFuzzer
+            (Fuzz.constant Cancel)
         <|
             \_ _ _ _ finalModel ->
                 finalModel.currentCoins
@@ -135,9 +99,9 @@ msgTest description app specificMsgFuzzer testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-            customFailure
-                (testFn initModel msgs modelAfterMsgs msg finalModel)
-                (failureStringCommon initModel msgs modelAfterMsgs msg finalModel)
+                customFailure
+                    (testFn initModel msgs modelAfterMsgs msg finalModel)
+                    (failureStringCommon initModel msgs modelAfterMsgs msg finalModel)
 
 
 {-| Similar to msgTest, but only gets run when a precondition holds.
@@ -147,7 +111,7 @@ msgTest description app specificMsgFuzzer testFn =
         msgTestWithPrecondition
             "Buying above price vends the product"
             app
-            buyFuzzer
+            (Fuzz.constant Buy)
             (\model -> model.currentCoins >= model.productPrice)
         <|
             \_ _ _ _ finalModel ->
@@ -182,12 +146,12 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
                 finalModel =
                     update msg modelAfterMsgs
             in
-            if precondition modelAfterMsgs then
-                customFailure
-                    (testFn initModel msgs modelAfterMsgs msg finalModel)
-                    (failureStringCommon initModel msgs modelAfterMsgs msg finalModel)
-            else
-                Expect.pass
+                if precondition modelAfterMsgs then
+                    customFailure
+                        (testFn initModel msgs modelAfterMsgs msg finalModel)
+                        (failureStringCommon initModel msgs modelAfterMsgs msg finalModel)
+                else
+                    Expect.pass
 
 
 {-| Tests that a property holds no matter what Msgs we applied.
@@ -226,22 +190,6 @@ invariantTest description app testFn =
                 finalModel =
                     List.foldl update initModel msgs
             in
-            customFailure
-                (testFn initModel msgs finalModel)
-                (failureStringInvariant initModel msgs finalModel)
-
-
-{-| Fuzzer that chooses a Msg randomly from a collection of Msg fuzzers.
-
-    productVendingMsg : Fuzzer Msg
-    productVendingMsg =
-        ArchitectureTest.oneOfMsgs
-            [ Fuzz.constant Buy
-            , Fuzz.constant TakeProduct
-            ]
--}
-oneOfMsgs : List (Fuzzer msg) -> Fuzzer msg
-oneOfMsgs list =
-    list
-        |> List.map (\x -> ( 1, x ))
-        |> Fuzz.frequency
+                customFailure
+                    (testFn initModel msgs finalModel)
+                    (failureStringInvariant initModel msgs finalModel)

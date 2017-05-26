@@ -139,5 +139,5 @@ failureStringInvariant initModel msgs finalModel message =
 oneOfValues : List a -> Fuzzer a
 oneOfValues list =
     list
-        |> List.map (\x -> ( 1, Fuzz.constant x ))
-        |> Fuzz.frequency
+        |> List.map Fuzz.constant
+        |> Fuzz.oneOf
