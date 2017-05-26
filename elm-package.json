@@ -1,5 +1,5 @@
 {
-    "version": "1.0.0",
+    "version": "1.0.1",
     "summary": "A library for fuzz testing TEA models by simulating user interactions",
     "repository": "https://github.com/Janiczek/elm-architecture-test.git",
     "license": "BSD-3-Clause",
