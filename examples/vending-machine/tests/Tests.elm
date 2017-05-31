@@ -1,4 +1,4 @@
-module Tests.VendingMachine
+module Tests
     exposing
         ( addingAddsToCounter
         , buyingAboveOrEqPriceMakesCoinsCounterEmpty
@@ -11,8 +11,8 @@ module Tests.VendingMachine
         , takingProductTakesIt
         )
 
-import ArchitectureTest.Types exposing (..)
 import ArchitectureTest
+import ArchitectureTest.Types exposing (..)
 import Expect
 import Fuzz exposing (Fuzzer)
 import Random.Pcg as Random
@@ -43,7 +43,7 @@ takeProduct =
 
 msg : Fuzzer Msg
 msg =
-    ArchitectureTest.oneOfMsgs
+    Fuzz.oneOf
         [ addCoins
         , cancel
         , buy
@@ -167,7 +167,7 @@ currentCoinsPositive =
 
 msgWithoutAddCoins : Fuzzer Msg
 msgWithoutAddCoins =
-    ArchitectureTest.oneOfMsgs
+    Fuzz.oneOf
         [ cancel
         , buy
         , takeProduct

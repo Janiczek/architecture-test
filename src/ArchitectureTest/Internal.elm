@@ -1,8 +1,8 @@
 module ArchitectureTest.Internal exposing (..)
 
 import ArchitectureTest.Types exposing (..)
-import Fuzz exposing (Fuzzer)
 import Expect exposing (Expectation)
+import Fuzz exposing (Fuzzer)
 import Test.Runner
 
 
@@ -37,6 +37,7 @@ transformUpdate testedUpdate =
 {-| A nice custom failure message for a failing expectation.
 
 Now if only there was a way to get rid of the "Given ..." :)
+
 -}
 customFailure : Expectation -> (String -> String) -> Expectation
 customFailure expectation failureString =
