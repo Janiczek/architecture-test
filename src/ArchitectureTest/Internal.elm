@@ -1,6 +1,7 @@
 module ArchitectureTest.Internal exposing (..)
 
 import ArchitectureTest.Types exposing (..)
+import Console
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Test.Runner
@@ -55,84 +56,54 @@ customFailure expectation failureString =
 -}
 failureStringCommon : model -> List msg -> model -> msg -> model -> String -> String
 failureStringCommon initModel msgs modelAfterMsgs msg finalModel message =
-    if List.isEmpty msgs then
-        [ "Starting model:"
-        , ""
-        , "    " ++ toString initModel
-        , ""
-        , "Tested Msg (failed its contract):"
-        , ""
-        , "    " ++ toString msg
-        , ""
-        , "Resulting model:"
-        , ""
-        , "    " ++ toString finalModel
-        , ""
-        , "Failure:"
-        , ""
-        , message
-        ]
-            |> String.join "\n"
-    else
-        [ "Starting model:"
-        , ""
-        , "    " ++ toString initModel
-        , ""
-        , "Msgs applied to it:"
-        , ""
-        , "    " ++ toString msgs
-        , ""
-        , "Model after the Msgs:"
-        , ""
-        , "    " ++ toString modelAfterMsgs
-        , ""
-        , "Tested Msg (failed its contract):"
-        , ""
-        , "    " ++ toString msg
-        , ""
-        , "Resulting model:"
-        , ""
-        , "    " ++ toString finalModel
-        , ""
-        , "Failure:"
-        , ""
-        , message
-        ]
-            |> String.join "\n"
+    [ Console.dark <| "Starting model:"
+    , ""
+    , "    " ++ toString initModel
+    , ""
+    , Console.dark <| "Msgs applied to it:"
+    , ""
+    , "    " ++ toString msgs
+    , ""
+    , Console.dark <| "Model after the Msgs:"
+    , ""
+    , "    " ++ toString modelAfterMsgs
+    , ""
+    , Console.dark <| Console.bold <| "Tested Msg (failed its contract):"
+    , ""
+    , Console.bold <| Console.red <| "    " ++ toString msg
+    , ""
+    , Console.dark <| "Resulting model:"
+    , ""
+    , "    " ++ toString finalModel
+    , ""
+    , Console.dark <| Console.bold <| "Failure:"
+    , ""
+    , Console.bold <| Console.red <| "    " ++ message
+    ]
+        |> String.join "\n"
 
 
 {-| Failure message given when an invariant test fails.
 -}
 failureStringInvariant : model -> List msg -> model -> String -> String
 failureStringInvariant initModel msgs finalModel message =
-    if List.isEmpty msgs then
-        [ "Starting model (failed a contract):"
-        , ""
-        , "    " ++ toString initModel
-        , ""
-        , "Failure:"
-        , ""
-        , message
-        ]
-            |> String.join "\n"
-    else
-        [ "Starting model:"
-        , ""
-        , "    " ++ toString initModel
-        , ""
-        , "Msgs applied to it (failed a contract):"
-        , ""
-        , "    " ++ toString msgs
-        , ""
-        , "Resulting model:"
-        , ""
-        , "    " ++ toString finalModel
-        , ""
-        , "Failure:"
-        , ""
-        , message
-        ]
-            |> String.join "\n"
+    [ Console.dark <| "Starting model:"
+    , ""
+    , "    " ++ toString initModel
+    , ""
+    , Console.dark <| "Msgs applied to it (failed a contract):"
+    , ""
+    , "    " ++ toString msgs
+    , ""
+    , Console.dark <| "Resulting model:"
+    , ""
+    , "    " ++ toString finalModel
+    , ""
+    , Console.dark <| Console.bold <| "Failure:"
+    , ""
+    , Console.bold <| Console.red <| "    " ++ message
+    ]
+        |> String.join "\n"
 
 
 {-| Fuzzer that chooses a value from a collection of values.

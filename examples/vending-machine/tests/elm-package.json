@@ -9,7 +9,7 @@
     ],
     "exposed-modules": [],
     "dependencies": {
-        "Janiczek/elm-architecture-test": "1.0.5 <= v < 2.0.0",
+        "Janiczek/elm-architecture-test": "1.0.9 <= v < 2.0.0",
         "elm-community/elm-test": "4.0.0 <= v < 5.0.0",
         "elm-lang/core": "5.1.1 <= v < 6.0.0",
         "elm-lang/html": "2.0.0 <= v < 3.0.0",
