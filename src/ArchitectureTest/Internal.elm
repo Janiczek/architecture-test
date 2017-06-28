@@ -4,6 +4,7 @@ import ArchitectureTest.Types exposing (..)
 import Console
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
+import String
 import Test.Runner
 
 
@@ -78,7 +79,7 @@ failureStringCommon initModel msgs modelAfterMsgs msg finalModel message =
     , ""
     , Console.dark <| Console.bold <| "Failure:"
     , ""
-    , Console.bold <| Console.red <| "    " ++ message
+    , Console.bold <| Console.red <| indentLines message
     ]
         |> String.join "\n"
 
@@ -101,7 +102,7 @@ failureStringInvariant initModel msgs finalModel message =
     , ""
     , Console.dark <| Console.bold <| "Failure:"
     , ""
-    , Console.bold <| Console.red <| "    " ++ message
+    , Console.bold <| Console.red <| indentLines message
     ]
         |> String.join "\n"
 
@@ -113,3 +114,11 @@ oneOfValues list =
     list
         |> List.map Fuzz.constant
         |> Fuzz.oneOf
+
+
+indentLines : String -> String
+indentLines message =
+    message
+        |> String.lines
+        |> List.map (\line -> "    " ++ line)
+        |> String.join "\n"
