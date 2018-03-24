@@ -1,7 +1,6 @@
 module ArchitectureTest.Internal exposing (..)
 
 import ArchitectureTest.Types exposing (..)
-import Console
 import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import String
@@ -57,29 +56,29 @@ customFailure expectation failureString =
 -}
 failureStringCommon : model -> List msg -> model -> msg -> model -> String -> String
 failureStringCommon initModel msgs modelAfterMsgs msg finalModel message =
-    [ Console.dark <| "Starting model:"
+    [ "Starting model:"
     , ""
     , "    " ++ toString initModel
     , ""
-    , Console.dark <| "Msgs applied to it:"
+    , "Msgs applied to it:"
     , ""
     , "    " ++ toString msgs
     , ""
-    , Console.dark <| "Model after the Msgs:"
+    , "Model after the Msgs:"
     , ""
     , "    " ++ toString modelAfterMsgs
     , ""
-    , Console.dark <| Console.bold <| "Tested Msg (failed its contract):"
+    , "Tested Msg (failed its contract):"
     , ""
-    , Console.bold <| Console.red <| "    " ++ toString msg
+    , "    " ++ toString msg
     , ""
-    , Console.dark <| "Resulting model:"
+    , "Resulting model:"
     , ""
     , "    " ++ toString finalModel
     , ""
-    , Console.dark <| Console.bold <| "Failure:"
+    , "Failure:"
     , ""
-    , Console.bold <| Console.red <| indentLines message
+    , indentLines message
     ]
         |> String.join "\n"
 
@@ -88,21 +87,21 @@ failureStringCommon initModel msgs modelAfterMsgs msg finalModel message =
 -}
 failureStringInvariant : model -> List msg -> model -> String -> String
 failureStringInvariant initModel msgs finalModel message =
-    [ Console.dark <| "Starting model:"
+    [ "Starting model:"
     , ""
     , "    " ++ toString initModel
     , ""
-    , Console.dark <| "Msgs applied to it (failed a contract):"
+    , "Msgs applied to it (failed a contract):"
     , ""
     , "    " ++ toString msgs
     , ""
-    , Console.dark <| "Resulting model:"
+    , "Resulting model:"
     , ""
     , "    " ++ toString finalModel
     , ""
-    , Console.dark <| Console.bold <| "Failure:"
+    , "Failure:"
     , ""
-    , Console.bold <| Console.red <| indentLines message
+    , indentLines message
     ]
         |> String.join "\n"
 
