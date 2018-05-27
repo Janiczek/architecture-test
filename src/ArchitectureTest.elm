@@ -1,6 +1,10 @@
 module ArchitectureTest
     exposing
-        ( invariantTest
+        ( Config
+        , TestedApp
+        , TestedModel
+        , TestedUpdate
+        , invariantTest
         , msgTest
         , msgTestWithPrecondition
         )
