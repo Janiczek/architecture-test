@@ -2,8 +2,8 @@ module ArchitectureTest
     exposing
         ( Config
         , TestedApp
-        , TestedModel
-        , TestedUpdate
+        , TestedModel(..)
+        , TestedUpdate(..)
         , invariantTest
         , msgTest
         , msgTestWithPrecondition
