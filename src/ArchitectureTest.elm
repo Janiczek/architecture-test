@@ -68,20 +68,32 @@ import Test.Runner.Failure
 {-| Tests that a condition holds for a randomly generated Model
 after that specific Msg is applied.
 
+The process is as follows:
+
+1.  get an initial `Model` (based on `TestedApp`)
+
+2.  stuff it and a list of random `Msg`s into `update` to get a random `Model`
+
+3.  create a `Msg` we will test
+
+4.  stuff it and the random `Model` into `update` to get the final `Model`
+
+5.  run your test function on the three values (random Model, tested Msg, final Model)
+
     cancelReturnsMoney : Test
     cancelReturnsMoney =
-        msgTest "Cancelling returns all input money"
-            config
-            app
-            (Fuzz.constant Cancel)
-        <|
-            \_ _ _ _ finalModel ->
-                finalModel.currentCoins
-                    |> Expect.equal 0
+    msgTest "Cancelling returns all input money"
+    config
+    app
+    (Fuzz.constant Cancel)
+    <|
+    _ _ finalModel ->
+    finalModel.currentCoins
+    |> Expect.equal 0
 
 The test function's arguments are:
 
-    init model -> random Msgs -> model before tested Msg -> tested Msg -> final model
+    random Model (before the tested Msg) -> tested Msg -> final Model
 
 -}
 msgTest :
@@ -89,7 +101,7 @@ msgTest :
     -> Config model msg
     -> TestedApp model msg
     -> Fuzzer msg
-    -> (model -> List msg -> model -> msg -> model -> Expectation)
+    -> (model -> msg -> model -> Expectation)
     -> Test
 msgTest description config app specificMsgFuzzer testFn =
     Test.fuzz3
@@ -110,8 +122,8 @@ msgTest description config app specificMsgFuzzer testFn =
                     update msg modelAfterMsgs
             in
             customFailure
-                (testFn initModel msgs modelAfterMsgs msg finalModel)
-                (failureStringCommon config initModel msgs modelAfterMsgs msg finalModel)
+                (testFn modelAfterMsgs msg finalModel)
+                (failureStringCommon config modelAfterMsgs msg finalModel)
 
 
 {-| Similar to msgTest, but only gets run when a precondition holds.
@@ -124,7 +136,7 @@ msgTest description config app specificMsgFuzzer testFn =
             (Fuzz.constant Buy)
             (\model -> model.currentCoins >= model.productPrice)
         <|
-            \_ _ _ _ finalModel ->
+            \_ _ finalModel ->
                 finalModel.isProductVended
                     |> Expect.true "Product should be vended after trying to buy with enough money"
 
@@ -137,7 +149,7 @@ msgTestWithPrecondition :
     -> TestedApp model msg
     -> Fuzzer msg
     -> (model -> Bool)
-    -> (model -> List msg -> model -> msg -> model -> Expectation)
+    -> (model -> msg -> model -> Expectation)
     -> Test
 msgTestWithPrecondition description config app specificMsgFuzzer precondition testFn =
     Test.fuzz3
@@ -159,8 +171,8 @@ msgTestWithPrecondition description config app specificMsgFuzzer precondition te
             in
             if precondition modelAfterMsgs then
                 customFailure
-                    (testFn initModel msgs modelAfterMsgs msg finalModel)
-                    (failureStringCommon config initModel msgs modelAfterMsgs msg finalModel)
+                    (testFn modelAfterMsgs msg finalModel)
+                    (failureStringCommon config modelAfterMsgs msg finalModel)
             else
                 Expect.pass
 
@@ -302,17 +314,9 @@ customFailure expectation failureString =
 
 {-| Failure message given when most of the tests fail.
 -}
-failureStringCommon : Config model msg -> model -> List msg -> model -> msg -> model -> String -> String
-failureStringCommon { modelToString, msgToString } initModel msgs modelAfterMsgs msg finalModel message =
-    [ "Starting model:"
-    , ""
-    , "    " ++ modelToString initModel
-    , ""
-    , "Msgs applied to it:"
-    , ""
-    , "    [ " ++ (msgs |> List.map msgToString |> String.join ", ") ++ " ]"
-    , ""
-    , "Model after the Msgs:"
+failureStringCommon : Config model msg -> model -> msg -> model -> String -> String
+failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel message =
+    [ "Random Model:"
     , ""
     , "    " ++ modelToString modelAfterMsgs
     , ""
