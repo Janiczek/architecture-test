@@ -1,6 +1,6 @@
 # ArchitectureTest
 
-[![Terminal screencast of usage](https://github.com/Janiczek/elm-architecture-test/raw/master/doc/example_run.gif)](https://asciinema.org/a/6n3ax5a5um1fy60q6q4taisoi)
+[<img src="https://github.com/Janiczek/elm-architecture-test/raw/master/doc/example_run.gif" width="600" alt="Terminal screencast of usage" title="Terminal screencast of usage">](https://asciinema.org/a/6n3ax5a5um1fy60q6q4taisoi)
 
 **tl;dr:** Fuzz-test your `update` function with random `List Msg`s!
 
