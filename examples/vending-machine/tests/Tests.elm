@@ -1,21 +1,19 @@
-module Tests
-    exposing
-        ( addingAddsToCounter
-        , buyingAboveOrEqPriceMakesCoinsCounterEmpty
-        , buyingAboveOrEqPriceVendsProduct
-        , buyingUnderPriceDoesntBuy
-        , cancellingReturnsAllMoney
-        , currentCoinsPositive
-        , onlyAddCoinsAddsCoins
-        , priceConstant
-        , takingProductTakesIt
-        )
+module Tests exposing
+    ( addingAddsToCounter
+    , buyingAboveOrEqPriceMakesCoinsCounterEmpty
+    , buyingAboveOrEqPriceVendsProduct
+    , buyingUnderPriceDoesntBuy
+    , cancellingReturnsAllMoney
+    , currentCoinsPositive
+    , onlyAddCoinsAddsCoins
+    , priceConstant
+    , takingProductTakesIt
+    )
 
-import ArchitectureTest
-import ArchitectureTest.Types exposing (..)
+import ArchitectureTest exposing (..)
 import Expect
 import Fuzz exposing (Fuzzer)
-import Random.Pcg as Random
+import Random
 import Test exposing (Test)
 import VendingMachine exposing (Model, Msg(..), init, update)
 
@@ -41,8 +39,8 @@ takeProduct =
     Fuzz.constant TakeProduct
 
 
-msg : Fuzzer Msg
-msg =
+msg_ : Fuzzer Msg
+msg_ =
     Fuzz.oneOf
         [ addCoins
         , cancel
@@ -54,9 +52,48 @@ msg =
 app : TestedApp Model Msg
 app =
     { model = ConstantModel init
-    , update = BeginnerUpdate update
-    , msgFuzzer = msg
+    , update = UpdateWithoutCmds update
+    , msgFuzzer = msg_
+    , modelToString = modelToString
+    , msgToString = msgToString
     }
+
+
+modelToString : Model -> String
+modelToString { currentCoins, productPrice, isProductVended } =
+    "{ currentCoins = "
+        ++ String.fromInt currentCoins
+        ++ ", productPrice = "
+        ++ String.fromInt productPrice
+        ++ ", isProductVended = "
+        ++ boolToString isProductVended
+        ++ " }"
+
+
+msgToString : Msg -> String
+msgToString msg =
+    case msg of
+        AddCoins coins ->
+            "AddCoins " ++ String.fromInt coins
+
+        Cancel ->
+            "Cancel"
+
+        Buy ->
+            "Buy"
+
+        TakeProduct ->
+            "TakeProduct"
+
+
+boolToString : Bool -> String
+boolToString bool =
+    case bool of
+        True ->
+            "True"
+
+        False ->
+            "False"
 
 
 
@@ -70,7 +107,7 @@ addingAddsToCounter =
         app
         addCoins
     <|
-        \_ _ modelBeforeMsg msg finalModel ->
+        \modelBeforeMsg msg finalModel ->
             case msg of
                 AddCoins amount ->
                     finalModel.currentCoins
@@ -87,7 +124,7 @@ cancellingReturnsAllMoney =
         app
         cancel
     <|
-        \_ _ _ _ finalModel ->
+        \_ _ finalModel ->
             finalModel.currentCoins
                 |> Expect.equal 0
 
@@ -100,7 +137,7 @@ buyingUnderPriceDoesntBuy =
         buy
         (\model -> model.currentCoins < model.productPrice && not model.isProductVended)
     <|
-        \_ _ _ _ finalModel ->
+        \_ _ finalModel ->
             finalModel.isProductVended
                 |> Expect.false "Product shouldn't be vended when buying with not enough money"
 
@@ -112,7 +149,7 @@ takingProductTakesIt =
         app
         takeProduct
     <|
-        \_ _ _ _ finalModel ->
+        \_ _ finalModel ->
             finalModel.isProductVended
                 |> Expect.false "Product shouldn't be vended after taking it"
 
@@ -125,7 +162,7 @@ buyingAboveOrEqPriceVendsProduct =
         buy
         (\model -> model.currentCoins >= model.productPrice)
     <|
-        \_ _ _ _ finalModel ->
+        \_ _ finalModel ->
             finalModel.isProductVended
                 |> Expect.true "Product should be vended when buying with enough money"
 
@@ -138,7 +175,7 @@ buyingAboveOrEqPriceMakesCoinsCounterEmpty =
         buy
         (\model -> model.currentCoins >= model.productPrice)
     <|
-        \_ _ _ _ finalModel ->
+        \_ _ finalModel ->
             finalModel.currentCoins
                 |> Expect.equal 0
 
@@ -181,6 +218,6 @@ onlyAddCoinsAddsCoins =
         app
         msgWithoutAddCoins
     <|
-        \_ _ modelBeforeMsg _ finalModel ->
+        \modelBeforeMsg _ finalModel ->
             finalModel.currentCoins
                 |> Expect.atMost modelBeforeMsg.currentCoins

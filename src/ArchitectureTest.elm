@@ -1,13 +1,7 @@
-module ArchitectureTest
-    exposing
-        ( Config
-        , TestedApp
-        , TestedModel(..)
-        , TestedUpdate(..)
-        , invariantTest
-        , msgTest
-        , msgTestWithPrecondition
-        )
+module ArchitectureTest exposing
+    ( msgTest, msgTestWithPrecondition, invariantTest
+    , TestedApp, TestedModel(..), TestedUpdate(..)
+    )
 
 {-| A library for **fuzz testing TEA models** by simulating user
 interactions (using fuzzed lists of Msgs).
@@ -25,14 +19,14 @@ will show you the minimal Msg sequence to provoke a bug.**
 The `app` in doc examples below is:
 
     { model = ConstantModel model
-    , update = BeginnerUpdate update
+    , update = UpdateWithoutCmds update
     , msgFuzzer =
-          Fuzz.oneOf
-              [ Fuzz.int 0 50 |> Fuzz.map AddCoins
-              , Fuzz.constant Cancel
-              , Fuzz.constant Buy
-              , Fuzz.constant TakeProduct
-              ]
+        Fuzz.oneOf
+            [ Fuzz.int 0 50 |> Fuzz.map AddCoins
+            , Fuzz.constant Cancel
+            , Fuzz.constant Buy
+            , Fuzz.constant TakeProduct
+            ]
     }
 
 For a complete code example, see the examples/ directory of the repo.
@@ -45,7 +39,7 @@ For a complete code example, see the examples/ directory of the repo.
 
 # Types
 
-@docs Config, TestedApp, TestedModel, TestedUpdate
+@docs TestedApp, TestedModel, TestedUpdate
 
 -}
 
@@ -54,6 +48,7 @@ import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
 import Test.Runner
 import Test.Runner.Failure
+
 
 
 {- TODO would a `Fuzzer (List msg)` escape hatch be worth having
@@ -83,11 +78,9 @@ The process is as follows:
     cancelReturnsMoney : Test
     cancelReturnsMoney =
     msgTest "Cancelling returns all input money"
-    config
     app
-    (Fuzz.constant Cancel)
-    <|
-    _ _ finalModel ->
+    (Fuzz.constant Cancel) <|
+    \_ \_ finalModel ->
     finalModel.currentCoins
     |> Expect.equal 0
 
@@ -98,12 +91,11 @@ The test function's arguments are:
 -}
 msgTest :
     String
-    -> Config model msg
     -> TestedApp model msg
     -> Fuzzer msg
     -> (model -> msg -> model -> Expectation)
     -> Test
-msgTest description config app specificMsgFuzzer testFn =
+msgTest description app specificMsgFuzzer testFn =
     Test.fuzz3
         (testedModelToFuzzer app.model)
         (Fuzz.list app.msgFuzzer)
@@ -123,7 +115,7 @@ msgTest description config app specificMsgFuzzer testFn =
             in
             customFailure
                 (testFn modelAfterMsgs msg finalModel)
-                (failureStringCommon config modelAfterMsgs msg finalModel)
+                (failureStringCommon app modelAfterMsgs msg finalModel)
 
 
 {-| Similar to msgTest, but only gets run when a precondition holds.
@@ -131,7 +123,6 @@ msgTest description config app specificMsgFuzzer testFn =
     buyingAbovePriceVendsProduct : Test
     buyingAbovePriceVendsProduct =
         msgTestWithPrecondition "Buying above price vends the product"
-            config
             app
             (Fuzz.constant Buy)
             (\model -> model.currentCoins >= model.productPrice)
@@ -145,13 +136,12 @@ The precondition acts on the "model before specific Msg" (see `msgTest` docs).
 -}
 msgTestWithPrecondition :
     String
-    -> Config model msg
     -> TestedApp model msg
     -> Fuzzer msg
     -> (model -> Bool)
     -> (model -> msg -> model -> Expectation)
     -> Test
-msgTestWithPrecondition description config app specificMsgFuzzer precondition testFn =
+msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
     Test.fuzz3
         (testedModelToFuzzer app.model)
         (Fuzz.list app.msgFuzzer)
@@ -172,7 +162,8 @@ msgTestWithPrecondition description config app specificMsgFuzzer precondition te
             if precondition modelAfterMsgs then
                 customFailure
                     (testFn modelAfterMsgs msg finalModel)
-                    (failureStringCommon config modelAfterMsgs msg finalModel)
+                    (failureStringCommon app modelAfterMsgs msg finalModel)
+
             else
                 Expect.pass
 
@@ -182,7 +173,6 @@ msgTestWithPrecondition description config app specificMsgFuzzer precondition te
     priceConstant : Test
     priceConstant =
         invariantTest "Price is constant"
-            config
             app
         <|
             \initModel _ finalModel ->
@@ -196,11 +186,10 @@ The test function's arguments are:
 -}
 invariantTest :
     String
-    -> Config model msg
     -> TestedApp model msg
     -> (model -> List msg -> model -> Expectation)
     -> Test
-invariantTest description config app testFn =
+invariantTest description app testFn =
     Test.fuzz2
         (testedModelToFuzzer app.model)
         (Fuzz.list app.msgFuzzer)
@@ -216,15 +205,7 @@ invariantTest description config app testFn =
             in
             customFailure
                 (testFn initModel msgs finalModel)
-                (failureStringInvariant config initModel msgs finalModel)
-
-
-{-| Functions used for showing Msg and Model in the test failures.
--}
-type alias Config model msg =
-    { msgToString : msg -> String
-    , modelToString : model -> String
-    }
+                (failureStringInvariant app initModel msgs finalModel)
 
 
 {-| All of these "architecture tests" are going to have something
@@ -238,6 +219,8 @@ type alias TestedApp model msg =
     { model : TestedModel model
     , update : TestedUpdate model msg
     , msgFuzzer : Fuzzer msg
+    , msgToString : msg -> String
+    , modelToString : model -> String
     }
 
 
@@ -250,20 +233,20 @@ type TestedModel model
     | OneOfModels (List model)
 
 
-{-| Main applications can be of two types: beginner (no Cmds)
+{-| Main applications can be of two types: those without Cmds
 and normal (Cmds present).
 
 For custom `update` functions returning eg. triples etc.,
-just use `BeginnerUpdate` with a function that returns just the model part of
+just use `UpdateWithoutCmds` with a function that returns just the model part of
 the result:
 
     update : Msg -> Model -> {model : Model, cmd : Cmd Msg, outMsg : OutMsg}
 
-    BeginnerUpdate (\msg model -> update msg model |> .model)
+    UpdateWithoutCmds (\msg model -> update msg model |> .model)
 
 -}
 type TestedUpdate model msg
-    = BeginnerUpdate (msg -> model -> model)
+    = UpdateWithoutCmds (msg -> model -> model)
     | NormalUpdate (msg -> model -> ( model, Cmd msg ))
 
 
@@ -287,7 +270,7 @@ testedModelToFuzzer testedModel =
 transformUpdate : TestedUpdate model msg -> (msg -> model -> model)
 transformUpdate testedUpdate =
     case testedUpdate of
-        BeginnerUpdate update ->
+        UpdateWithoutCmds update ->
             update
 
         NormalUpdate update ->
@@ -314,7 +297,7 @@ customFailure expectation failureString =
 
 {-| Failure message given when most of the tests fail.
 -}
-failureStringCommon : Config model msg -> model -> msg -> model -> String -> String
+failureStringCommon : TestedApp model msg -> model -> msg -> model -> String -> String
 failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel message =
     [ "Random Model:"
     , ""
@@ -337,7 +320,7 @@ failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel
 
 {-| Failure message given when an invariant test fails.
 -}
-failureStringInvariant : Config model msg -> model -> List msg -> model -> String -> String
+failureStringInvariant : TestedApp model msg -> model -> List msg -> model -> String -> String
 failureStringInvariant { modelToString, msgToString } initModel msgs finalModel message =
     [ "Starting model:"
     , ""

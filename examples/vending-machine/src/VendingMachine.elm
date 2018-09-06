@@ -38,6 +38,7 @@ update msg model =
                     | currentCoins = 0
                     , isProductVended = True
                 }
+
             else
                 model
 

@@ -1,2 +1,5 @@
 elm-stuff/
+node_modules/
 index.html
+yarn.lock
+package.json
