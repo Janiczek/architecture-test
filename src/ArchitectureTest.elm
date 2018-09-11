@@ -1,14 +1,19 @@
-module ArchitectureTest exposing
-    ( msgTest, msgTestWithPrecondition, invariantTest
-    , TestedApp, TestedModel(..), TestedUpdate(..)
-    )
+module ArchitectureTest
+    exposing
+        ( TestedApp
+        , TestedModel(..)
+        , TestedUpdate(..)
+        , invariantTest
+        , msgTest
+        , msgTestWithPrecondition
+        )
 
 {-| A library for **fuzz testing TEA models** by simulating user
 interactions (using fuzzed lists of Msgs).
 
 This means:
 
-  - start with a model (can be fuzzed, see `TestedModel` in Types module)
+  - start with a model (can be fuzzed, see `TestedModel`)
   - generate random Msgs (ie. "what the user would do")
   - apply them to the model
   - test a property of the model (ie. "Cancel Msg sets currentCoins to 0")
@@ -50,7 +55,6 @@ import Test.Runner
 import Test.Runner.Failure
 
 
-
 {- TODO would a `Fuzzer (List msg)` escape hatch be worth having
    here? (ie. smart Msg list building based on previously generated
    values, instead of "dumb" Fuzz.list)
@@ -80,7 +84,7 @@ The process is as follows:
     msgTest "Cancelling returns all input money"
     app
     (Fuzz.constant Cancel) <|
-    \_ \_ finalModel ->
+    _ _ finalModel ->
     finalModel.currentCoins
     |> Expect.equal 0
 
@@ -163,7 +167,6 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
                 customFailure
                     (testFn modelAfterMsgs msg finalModel)
                     (failureStringCommon app modelAfterMsgs msg finalModel)
-
             else
                 Expect.pass
 
@@ -290,8 +293,8 @@ customFailure expectation failureString =
             Expect.pass
 
         Just { description, reason } ->
-            -- TODO don't use Test.Runner.Failure.format
             Test.Runner.Failure.format description reason
+                |> failureString
                 |> Expect.fail
 
 
@@ -307,7 +310,7 @@ failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel
     , ""
     , "    " ++ msgToString msg
     , ""
-    , "Resulting model:"
+    , "Resulting Model:"
     , ""
     , "    " ++ modelToString finalModel
     , ""
