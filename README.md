@@ -6,13 +6,13 @@
 
 (Click on the diagram below for full size!)
 
-[![High-level diagram](https://github.com/Janiczek/elm-architecture-test/raw/master/doc/diagram_thumbnail.jpg)](https://github.com/Janiczek/elm-architecture-test/raw/master/doc/diagram.jpg)
+[![High-level diagram](https://github.com/Janiczek/architecture-test/raw/master/doc/diagram_thumbnail.jpg)](https://github.com/Janiczek/architecture-test/raw/master/doc/diagram.jpg)
 
 To do this, you create a `Msg` fuzzer (and possibly a `Model` fuzzer) and plug it in test functions exposed here!
 
-- [Here](https://github.com/Janiczek/elm-architecture-test/tree/master/examples) are example Models with test suites showing how to write these kinds of tests.
-- Richard Feldman has a simpler library [`rtfeldman/test-update`](http://package.elm-lang.org/packages/rtfeldman/test-update/latest) with the same purpose - give it a look!
-- A talk about this topic will be presented at [Elm Europe 2017](http://elmeurope.org/).
+- [Here](https://github.com/Janiczek/architecture-test/tree/master/examples) are example Models with test suites showing how to write these kinds of tests.
+- Richard Feldman has a simpler library [`rtfeldman/test-update`](https://package.elm-lang.org/packages/rtfeldman/test-update/latest) with the same purpose - give it a look!
+- A [talk](https://www.youtube.com/watch?v=baRcusTHc8E) about this topic was presented at [Elm Europe 2017](https://2017.elmeurope.org/).
 - For more discussion, see [this issue](https://github.com/elm-community/elm-test/issues/154) of elm-test.
 
 ----
@@ -47,7 +47,7 @@ allMsgs =
 
 ### How can I focus my Msgs (prefer some of them more than others?)
 
-Right, so [`Fuzz.oneOf`](http://package.elm-lang.org/packages/elm-community/elm-test/4.1.0/Fuzz#oneOf) gives all the options the same probability of being chosen. It internally uses [`Fuzz.frequency`](http://package.elm-lang.org/packages/elm-community/elm-test/4.1.0/Fuzz#frequency), which you can use too and specify your own probabilities!
+Right, so [`Fuzz.oneOf`](https://package.elm-lang.org/packages/elm-explorations/test/1.2.1/Fuzz#oneOf) gives all the options the same probability of being chosen. It internally uses [`Fuzz.frequency`](https://package.elm-lang.org/packages/elm-explorations/test/1.2.1/Fuzz#frequency), which you can use too and specify your own probabilities!
 
 ```elm
 preferAdding : Fuzzer Msg
