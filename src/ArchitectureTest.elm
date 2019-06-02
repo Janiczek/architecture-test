@@ -55,6 +55,7 @@ import Test.Runner
 import Test.Runner.Failure
 
 
+
 {- TODO would a `Fuzzer (List msg)` escape hatch be worth having
    here? (ie. smart Msg list building based on previously generated
    values, instead of "dumb" Fuzz.list)
@@ -79,14 +80,15 @@ The process is as follows:
 
 5.  run your test function on the three values (random Model, tested Msg, final Model)
 
+
     cancelReturnsMoney : Test
     cancelReturnsMoney =
-    msgTest "Cancelling returns all input money"
-    app
-    (Fuzz.constant Cancel) <|
-    _ _ finalModel ->
-    finalModel.currentCoins
-    |> Expect.equal 0
+        msgTest "Cancelling returns all input money"
+            app
+            (Fuzz.constant Cancel)
+        <|
+            \_ _ finalModel -> finalModel.currentCoins |> Expect.equal 0
+
 
 The test function's arguments are:
 
@@ -167,6 +169,7 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
                 customFailure
                     (testFn modelAfterMsgs msg finalModel)
                     (failureStringCommon app modelAfterMsgs msg finalModel)
+
             else
                 Expect.pass
 
