@@ -1,12 +1,7 @@
-module ArchitectureTest
-    exposing
-        ( TestedApp
-        , TestedModel(..)
-        , TestedUpdate(..)
-        , invariantTest
-        , msgTest
-        , msgTestWithPrecondition
-        )
+module ArchitectureTest exposing
+    ( msgTest, msgTestWithPrecondition, invariantTest
+    , TestedApp, TestedModel(..), TestedUpdate(..)
+    )
 
 {-| A library for **fuzz testing TEA models** by simulating user
 interactions (using fuzzed lists of Msgs).
@@ -80,15 +75,15 @@ The process is as follows:
 
 5.  run your test function on the three values (random Model, tested Msg, final Model)
 
-
-    cancelReturnsMoney : Test
-    cancelReturnsMoney =
-        msgTest "Cancelling returns all input money"
-            app
-            (Fuzz.constant Cancel)
-        <|
-            \_ _ finalModel -> finalModel.currentCoins |> Expect.equal 0
-
+```
+cancelReturnsMoney : Test
+cancelReturnsMoney =
+    msgTest "Cancelling returns all input money"
+        app
+        (Fuzz.constant Cancel)
+    <|
+        \_ _ finalModel -> finalModel.currentCoins |> Expect.equal 0
+```
 
 The test function's arguments are:
 
