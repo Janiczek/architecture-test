@@ -1,6 +1,7 @@
 module ArchitectureTest exposing
     ( msgTest, msgTestWithPrecondition, invariantTest
     , TestedApp, TestedModel(..), TestedUpdate(..)
+    , modelFuzzer
     )
 
 {-| A library for **fuzz testing TEA models** by simulating user
@@ -40,6 +41,11 @@ For a complete code example, see the examples/ directory of the repo.
 # Types
 
 @docs TestedApp, TestedModel, TestedUpdate
+
+
+# Fuzzers
+
+@docs modelFuzzer
 
 -}
 
@@ -259,8 +265,8 @@ testedModelToFuzzer testedModel =
         ConstantModel model ->
             Fuzz.constant model
 
-        FuzzedModel modelFuzzer ->
-            modelFuzzer
+        FuzzedModel modelFuzzer_ ->
+            modelFuzzer_
 
         OneOfModels modelList ->
             oneOfValues modelList
@@ -357,3 +363,14 @@ indentLines message =
         |> String.lines
         |> List.map (\line -> "    " ++ line)
         |> String.join "\n"
+
+
+{-| Fuzz the model, always starting with initial `Model`s and then doing
+consecutive `update` calls with fuzzed `Msg`s.
+
+Guarantees the final model is reachable using your Msgs and thus "makes sense."
+
+-}
+modelFuzzer : TestedApp model msg -> Fuzzer model
+modelFuzzer app =
+    testedModelToFuzzer app.model
