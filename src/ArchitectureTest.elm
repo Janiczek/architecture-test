@@ -53,7 +53,7 @@ import Expect exposing (Expectation)
 import Fuzz exposing (Fuzzer)
 import Test exposing (Test)
 import Test.Runner
-import Test.Runner.Failure
+import Test.Runner.Failure.Extra
 
 
 
@@ -297,7 +297,7 @@ customFailure expectation failureString =
             Expect.pass
 
         Just { description, reason } ->
-            Test.Runner.Failure.format description reason
+            Test.Runner.Failure.Extra.format description reason
                 |> failureString
                 |> Expect.fail
 
