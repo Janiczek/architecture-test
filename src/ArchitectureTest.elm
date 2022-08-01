@@ -1,7 +1,6 @@
 module ArchitectureTest exposing
-    ( msgTest, msgTestWithPrecondition, invariantTest
-    , TestedApp, TestedModel(..), TestedUpdate(..)
-    , modelFuzzer
+    ( TestedApp, withoutPreconditions
+    , msgTest, invariantTest
     )
 
 {-| A library for **fuzz testing TEA models** by simulating user
@@ -9,7 +8,7 @@ interactions (using fuzzed lists of Msgs).
 
 This means:
 
-  - start with a model (can be fuzzed, see `TestedModel`)
+  - start with a model (fuzzed, but you can use `Fuzz.constant` if you want to!)
   - generate random Msgs (ie. "what the user would do")
   - apply them to the model
   - test a property of the model (ie. "Cancel Msg sets currentCoins to 0")
@@ -19,33 +18,36 @@ will show you the minimal Msg sequence to provoke a bug.**
 
 The `app` in doc examples below is:
 
-    { model = ConstantModel model
-    , update = UpdateWithoutCmds update
-    , msgFuzzer =
-        Fuzz.oneOf
-            [ Fuzz.int 0 50 |> Fuzz.map AddCoins
-            , Fuzz.constant Cancel
-            , Fuzz.constant Buy
-            , Fuzz.constant TakeProduct
-            ]
+    { update = update
+    , getModel = identity
+    , model = Fuzz.constant model
+    , msgFuzzers =
+        [ { precondition = \_ -> True
+          , fuzzer = Fuzz.int 0 50 |> Fuzz.map AddCoins
+          }
+        , { precondition = \_ -> True
+          , fuzzer = Fuzz.constant Cancel
+          }
+        , { precondition = \_ -> True
+          , fuzzer = Fuzz.constant Buy
+          }
+        , { precondition = \_ -> True
+          , fuzzer = Fuzz.constant TakeProduct
+          }
+        ]
     }
 
 For a complete code example, see the examples/ directory of the repo.
 
 
+# Config
+
+@docs TestedApp, withoutPreconditions
+
+
 # Tests
 
-@docs msgTest, msgTestWithPrecondition, invariantTest
-
-
-# Types
-
-@docs TestedApp, TestedModel, TestedUpdate
-
-
-# Fuzzers
-
-@docs modelFuzzer
+@docs msgTest, invariantTest
 
 -}
 
@@ -56,14 +58,84 @@ import Test.Runner
 import Test.Runner.Failure.Extra
 
 
+{-| All of these "architecture tests" are going to have something
+in common: Model, update function and Msgs.
 
-{- TODO would a `Fuzzer (List msg)` escape hatch be worth having
-   here? (ie. smart Msg list building based on previously generated
-   values, instead of "dumb" Fuzz.list)
+You can test both apps and packages in this way: for a `Dict` package you'd put
+all the operations like `insert`, `delete`, ... into the `Msg` type and
+the `Dict` type itself into the `Model`.
+
+Note that for some tests you can eg. make the Msg fuzzer prefer
+certain Msgs more if you need to test them more extensively.
+
+You can use `Debug.toString` for `msgToString` and `modelToString` if you don't
+want to provide your own custom functions. Tests can use the Debug module!
+
+---
+
+`update` functions can take many forms:
+
+    updateWithoutCmds : Msg -> Model -> Model
+
+    updateWithCmds : Msg -> Model -> ( Model, Cmd Msg )
+
+    updateWithEffects : Msg -> Model -> ( Model, List Effect )
+
+    updateWithOutMsg : Msg -> Model -> ( Model, Cmd msg, List OutMsg )
+
+To encompass them, we use the `updateResult` type variable:
+
+    update : msg -> model -> updateResult
+
+So the `updateResult` will be some variant of `(model, Cmd msg)`.
+
+You will get the result as one of the arguments to the test functions and will be
+free to check any part of it. (This is where Effects really come in handy
+compared to Cmds, as Cmds are opaque.)
+
+If your `update` function returns Cmds but you only want to check the model, you
+can wrap the `update` function in another one that drops the uninteresting parts:
+
+    { update = \msg model -> update msg model |> Tuple.first
+    , ...
+    }
+
 -}
-{- TODO what about running the expectations after every Msg, like in
-   https://github.com/rtfeldman/test-update/blob/master/src/Test/Update.elm ?
+type alias TestedApp model msg updateResult =
+    { update : msg -> model -> updateResult
+    , getModel : updateResult -> model
+    , modelFuzzer : Fuzzer model
+    , msgFuzzers :
+        List
+            { precondition : model -> Bool
+            , fuzzer : Fuzzer msg
+            }
+    , msgToString : msg -> String
+    , modelToString : model -> String
+    , updateResultToString : updateResult -> String
+    }
+
+
+{-| Turn off precondition checking for fuzzed Msgs.
+
+Preconditions help you guide the Msg generation process and start testing
+interesting states faster - an optional optimization.
+
+They do bring a risk though - of not testing certain Msgs that would be valid
+during the normal application runtime. So you need to be precise about your
+preconditions. `\_ -> True` will turn them off and `\_ -> False` will
+effectively say "This Msg can't ever be emitted!"
+
 -}
+withoutPreconditions : List (Fuzzer msg) -> List { precondition : model -> Bool, fuzzer : Fuzzer msg }
+withoutPreconditions fuzzers =
+    fuzzers
+        |> List.map
+            (\fuzzer ->
+                { precondition = \_ -> True
+                , fuzzer = fuzzer
+                }
+            )
 
 
 {-| Tests that a condition holds for a randomly generated Model
@@ -88,91 +160,30 @@ cancelReturnsMoney =
         app
         (Fuzz.constant Cancel)
     <|
-        \_ _ finalModel -> finalModel.currentCoins |> Expect.equal 0
+        \_ _ updateResult ->
+            finalModel.currentCoins
+                |> Expect.equal 0
 ```
 
 The test function's arguments are:
 
-    random Model (before the tested Msg) -> tested Msg -> final Model
+    random Model (before the tested Msg) -> tested Msg -> result of running update
 
 -}
 msgTest :
     String
-    -> TestedApp model msg
+    -> TestedApp model msg updateResult
     -> Fuzzer msg
-    -> (model -> msg -> model -> Expectation)
+    -> (model -> msg -> updateResult -> Expectation)
     -> Test
 msgTest description app specificMsgFuzzer testFn =
-    Test.fuzz3
-        (testedModelToFuzzer app.model)
-        (Fuzz.list app.msgFuzzer)
-        specificMsgFuzzer
+    Test.fuzz (msgTestResultFuzzer 0 app specificMsgFuzzer testFn)
         description
     <|
-        \initModel msgs msg ->
-            let
-                update =
-                    transformUpdate app.update
-
-                modelAfterMsgs =
-                    List.foldl update initModel msgs
-
-                finalModel =
-                    update msg modelAfterMsgs
-            in
+        \result ->
             customFailure
-                (testFn modelAfterMsgs msg finalModel)
-                (failureStringCommon app modelAfterMsgs msg finalModel)
-
-
-{-| Similar to msgTest, but only gets run when a precondition holds.
-
-    buyingAbovePriceVendsProduct : Test
-    buyingAbovePriceVendsProduct =
-        msgTestWithPrecondition "Buying above price vends the product"
-            app
-            (Fuzz.constant Buy)
-            (\model -> model.currentCoins >= model.productPrice)
-        <|
-            \_ _ finalModel ->
-                finalModel.isProductVended
-                    |> Expect.true "Product should be vended after trying to buy with enough money"
-
-The precondition acts on the "model before specific Msg" (see `msgTest` docs).
-
--}
-msgTestWithPrecondition :
-    String
-    -> TestedApp model msg
-    -> Fuzzer msg
-    -> (model -> Bool)
-    -> (model -> msg -> model -> Expectation)
-    -> Test
-msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
-    Test.fuzz3
-        (testedModelToFuzzer app.model)
-        (Fuzz.list app.msgFuzzer)
-        specificMsgFuzzer
-        description
-    <|
-        \initModel msgs msg ->
-            let
-                update =
-                    transformUpdate app.update
-
-                modelAfterMsgs =
-                    List.foldl update initModel msgs
-
-                finalModel =
-                    update msg modelAfterMsgs
-            in
-            if precondition modelAfterMsgs then
-                customFailure
-                    (testFn modelAfterMsgs msg finalModel)
-                    (failureStringCommon app modelAfterMsgs msg finalModel)
-
-            else
-                Expect.pass
+                (testFn result.modelBeforeMsg result.msg result.updateResult)
+                (failureStringCommon app result.modelBeforeMsg result.msg result.updateResult)
 
 
 {-| Tests that a property holds no matter what Msgs we applied.
@@ -188,101 +199,280 @@ msgTestWithPrecondition description app specificMsgFuzzer precondition testFn =
 
 The test function's arguments are:
 
-    init model -> random Msgs -> final model
+    init model -> random Msgs -> result of running update
 
 -}
 invariantTest :
     String
-    -> TestedApp model msg
-    -> (model -> List msg -> model -> Expectation)
+    -> TestedApp model msg updateResult
+    -> (model -> List msg -> updateResult -> Expectation)
     -> Test
 invariantTest description app testFn =
-    Test.fuzz2
-        (testedModelToFuzzer app.model)
-        (Fuzz.list app.msgFuzzer)
-        description
-    <|
-        \initModel msgs ->
-            let
-                update =
-                    transformUpdate app.update
-
-                finalModel =
-                    List.foldl update initModel msgs
-            in
+    Test.fuzz (invariantTestResultFuzzer 0 app testFn) description <|
+        \result ->
             customFailure
-                (testFn initModel msgs finalModel)
-                (failureStringInvariant app initModel msgs finalModel)
+                result.expectation
+                (failureStringInvariant app result.initModel result.msgs result.updateResult)
 
 
-{-| All of these "architecture tests" are going to have something
-in common: Model, update function and Msgs.
+minMsgListLength : Int
+minMsgListLength =
+    1
 
-Note that for some tests you can eg. make the Msg fuzzer prefer
-certain Msgs more if you need to test them more extensively.
 
+maxMsgListLength : Int
+maxMsgListLength =
+    32
+
+
+continueProbability : Float
+continueProbability =
+    -- formula taken from elm-test Fuzz module, listOfLengthBetween
+    1 - 1 / (1 + (toFloat minMsgListLength + toFloat maxMsgListLength / 2))
+
+
+hasFailure : Expectation -> Bool
+hasFailure exp =
+    Test.Runner.getFailureReason exp /= Nothing
+
+
+{-| When we generate Msgs, it's possible no precondition will hold and we won't
+be able to generate a Msg. If that happens we try again from scratch.
+If we reset too many times, we bail out with `Fuzz.invalid`.
 -}
-type alias TestedApp model msg =
-    { model : TestedModel model
-    , update : TestedUpdate model msg
-    , msgFuzzer : Fuzzer msg
-    , msgToString : msg -> String
-    , modelToString : model -> String
+maxTries : Int
+maxTries =
+    15
+
+
+type alias MsgTestResult model msg updateResult =
+    { initModel : model
+    , previousMsgs : List msg
+    , modelBeforeMsg : model
+    , msg : msg
+    , updateResult : updateResult
+    , expectation : Expectation
     }
 
 
-{-| The strategy for choosing an init model to which the Msgs
-will be applied.
--}
-type TestedModel model
-    = ConstantModel model
-    | FuzzedModel (Fuzzer model)
-    | OneOfModels (List model)
+type alias InvariantTestResult model msg updateResult =
+    { initModel : model
+    , msgs : List msg
+    , updateResult : updateResult
+    , expectation : Expectation
+    }
 
 
-{-| Main applications can be of two types: those without Cmds
-and normal (Cmds present).
+msgTestResultFuzzer :
+    Int
+    -> TestedApp model msg updateResult
+    -> Fuzzer msg
+    -> (model -> msg -> updateResult -> Expectation)
+    -> Fuzzer (MsgTestResult model msg updateResult)
+msgTestResultFuzzer tries app specificMsgFuzzer testFn =
+    if tries > maxTries then
+        Fuzz.invalid <|
+            "Can't generate Msgs given the current set of preconditions (tried "
+                ++ String.fromInt maxTries
+                ++ " times)."
 
-For custom `update` functions returning eg. triples etc.,
-just use `UpdateWithoutCmds` with a function that returns just the model part of
-the result:
+    else
+        let
+            tryAgain : () -> Fuzzer (MsgTestResult model msg updateResult)
+            tryAgain () =
+                msgTestResultFuzzer (tries + 1) app specificMsgFuzzer testFn
+        in
+        app.modelFuzzer
+            |> Fuzz.andThen
+                (\initModel ->
+                    let
+                        addItem : model -> List msg -> Fuzzer (MsgTestResult model msg updateResult)
+                        addItem currentModel msgsSoFar =
+                            let
+                                applicableMsgFuzzers : List (Fuzzer msg)
+                                applicableMsgFuzzers =
+                                    app.msgFuzzers
+                                        |> List.filter (\r -> r.precondition currentModel)
+                                        |> List.map .fuzzer
+                            in
+                            if List.isEmpty applicableMsgFuzzers then
+                                tryAgain ()
 
-    update : Msg -> Model -> {model : Model, cmd : Cmd Msg, outMsg : OutMsg}
+                            else
+                                applicableMsgFuzzers
+                                    |> Fuzz.oneOf
+                                    |> Fuzz.andThen
+                                        (\msg ->
+                                            let
+                                                result : updateResult
+                                                result =
+                                                    app.update msg currentModel
 
-    UpdateWithoutCmds (\msg model -> update msg model |> .model)
+                                                newModel : model
+                                                newModel =
+                                                    app.getModel result
 
--}
-type TestedUpdate model msg
-    = UpdateWithoutCmds (msg -> model -> model)
-    | NormalUpdate (msg -> model -> ( model, Cmd msg ))
+                                                newMsgsSoFar : List msg
+                                                newMsgsSoFar =
+                                                    msg :: msgsSoFar
+                                            in
+                                            go newModel newMsgsSoFar
+                                        )
+
+                        end : model -> List msg -> Fuzzer (MsgTestResult model msg updateResult)
+                        end currentModel msgsSoFar =
+                            -- random walk done, let's generate the specific msg and finish
+                            specificMsgFuzzer
+                                |> Fuzz.map
+                                    (\msg ->
+                                        let
+                                            result : updateResult
+                                            result =
+                                                app.update msg currentModel
+                                        in
+                                        { initModel = initModel
+                                        , previousMsgs = msgsSoFar
+                                        , modelBeforeMsg = currentModel
+                                        , msg = msg
+                                        , updateResult = result
+                                        , expectation = testFn currentModel msg result
+                                        }
+                                    )
+
+                        go : model -> List msg -> Fuzzer (MsgTestResult model msg updateResult)
+                        go currentModel msgsSoFar =
+                            let
+                                length =
+                                    List.length msgsSoFar
+                            in
+                            if length < minMsgListLength then
+                                addItem currentModel msgsSoFar
+
+                            else if length >= maxMsgListLength then
+                                end currentModel msgsSoFar
+
+                            else
+                                Fuzz.weightedBool continueProbability
+                                    |> Fuzz.andThen
+                                        (\oneMorePlease ->
+                                            if oneMorePlease then
+                                                addItem currentModel msgsSoFar
+
+                                            else
+                                                end currentModel msgsSoFar
+                                        )
+                    in
+                    go initModel []
+                )
 
 
-{-| Create a fuzzer from the Model specification.
--}
-testedModelToFuzzer : TestedModel model -> Fuzzer model
-testedModelToFuzzer testedModel =
-    case testedModel of
-        ConstantModel model ->
-            Fuzz.constant model
+invariantTestResultFuzzer :
+    Int
+    -> TestedApp model msg updateResult
+    -> (model -> List msg -> updateResult -> Expectation)
+    -> Fuzzer (InvariantTestResult model msg updateResult)
+invariantTestResultFuzzer tries app testFn =
+    if tries > maxTries then
+        Fuzz.invalid <|
+            "Can't generate Msgs given the current set of preconditions (tried "
+                ++ String.fromInt maxTries
+                ++ " times)."
 
-        FuzzedModel modelFuzzer_ ->
-            modelFuzzer_
+    else
+        let
+            tryAgain : () -> Fuzzer (InvariantTestResult model msg updateResult)
+            tryAgain () =
+                invariantTestResultFuzzer (tries + 1) app testFn
+        in
+        app.modelFuzzer
+            |> Fuzz.andThen
+                (\initModel ->
+                    let
+                        addItem : model -> List msg -> Fuzzer (InvariantTestResult model msg updateResult)
+                        addItem currentModel msgsSoFar =
+                            let
+                                applicableMsgFuzzers : List (Fuzzer msg)
+                                applicableMsgFuzzers =
+                                    app.msgFuzzers
+                                        |> List.filter (\r -> r.precondition currentModel)
+                                        |> List.map .fuzzer
+                            in
+                            if List.isEmpty applicableMsgFuzzers then
+                                tryAgain ()
 
-        OneOfModels modelList ->
-            oneOfValues modelList
+                            else
+                                applicableMsgFuzzers
+                                    |> Fuzz.oneOf
+                                    |> Fuzz.andThen
+                                        (\msg ->
+                                            let
+                                                updateResult : updateResult
+                                                updateResult =
+                                                    app.update msg currentModel
 
+                                                newModel : model
+                                                newModel =
+                                                    app.getModel updateResult
 
-{-| Prepare the `update` function for use in the tests, ie. drop Cmds.
--}
-transformUpdate : TestedUpdate model msg -> (msg -> model -> model)
-transformUpdate testedUpdate =
-    case testedUpdate of
-        UpdateWithoutCmds update ->
-            update
+                                                newMsgsSoFar : List msg
+                                                newMsgsSoFar =
+                                                    msg :: msgsSoFar
 
-        NormalUpdate update ->
-            -- ignore the Cmd
-            \msg model -> update msg model |> Tuple.first
+                                                expectation : Expectation
+                                                expectation =
+                                                    testFn initModel newMsgsSoFar updateResult
+                                            in
+                                            if hasFailure expectation then
+                                                Fuzz.constant
+                                                    { initModel = initModel
+                                                    , msgs = newMsgsSoFar
+                                                    , updateResult = updateResult
+                                                    , expectation = expectation
+                                                    }
+
+                                            else
+                                                go newModel newMsgsSoFar (Just updateResult)
+                                        )
+
+                        end : Maybe updateResult -> List msg -> Fuzzer (InvariantTestResult model msg updateResult)
+                        end lastUpdateResult msgsSoFar =
+                            case lastUpdateResult of
+                                Nothing ->
+                                    Fuzz.invalid "Couldn't generate a valid Msg"
+
+                                Just updateResult ->
+                                    Fuzz.constant
+                                        { initModel = initModel
+                                        , msgs = msgsSoFar
+                                        , updateResult = updateResult
+                                        , expectation = Expect.pass
+                                        }
+
+                        go : model -> List msg -> Maybe updateResult -> Fuzzer (InvariantTestResult model msg updateResult)
+                        go currentModel msgsSoFar lastUpdateResult =
+                            let
+                                length =
+                                    List.length msgsSoFar
+                            in
+                            if length < minMsgListLength then
+                                addItem currentModel msgsSoFar
+
+                            else if length >= maxMsgListLength then
+                                end lastUpdateResult msgsSoFar
+
+                            else
+                                Fuzz.weightedBool continueProbability
+                                    |> Fuzz.andThen
+                                        (\oneMorePlease ->
+                                            if oneMorePlease then
+                                                addItem currentModel msgsSoFar
+
+                                            else
+                                                end lastUpdateResult msgsSoFar
+                                        )
+                    in
+                    go initModel [] Nothing
+                )
 
 
 {-| A nice custom failure message for a failing expectation.
@@ -304,19 +494,25 @@ customFailure expectation failureString =
 
 {-| Failure message given when most of the tests fail.
 -}
-failureStringCommon : TestedApp model msg -> model -> msg -> model -> String -> String
-failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel message =
+failureStringCommon :
+    TestedApp model msg updateResult
+    -> model
+    -> msg
+    -> updateResult
+    -> String
+    -> String
+failureStringCommon app modelAfterMsgs msg updateResult message =
     [ "Random Model:"
     , ""
-    , "    " ++ modelToString modelAfterMsgs
+    , "    " ++ app.modelToString modelAfterMsgs
     , ""
     , "Tested Msg (failed its contract):"
     , ""
-    , "    " ++ msgToString msg
+    , "    " ++ app.msgToString msg
     , ""
-    , "Resulting Model:"
+    , "Result of the final `update`:"
     , ""
-    , "    " ++ modelToString finalModel
+    , "    " ++ app.updateResultToString updateResult
     , ""
     , "Failure:"
     , ""
@@ -327,19 +523,25 @@ failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel
 
 {-| Failure message given when an invariant test fails.
 -}
-failureStringInvariant : TestedApp model msg -> model -> List msg -> model -> String -> String
-failureStringInvariant { modelToString, msgToString } initModel msgs finalModel message =
+failureStringInvariant :
+    TestedApp model msg updateResult
+    -> model
+    -> List msg
+    -> updateResult
+    -> String
+    -> String
+failureStringInvariant app initModel msgs updateResult message =
     [ "Starting model:"
     , ""
-    , "    " ++ modelToString initModel
+    , "    " ++ app.modelToString initModel
     , ""
     , "Msgs applied to it (failed a contract):"
     , ""
-    , "    [ " ++ (msgs |> List.map msgToString |> String.join ", ") ++ " ]"
+    , "    [ " ++ (msgs |> List.map app.msgToString |> String.join ", ") ++ " ]"
     , ""
-    , "Resulting model:"
+    , "Result of the final `update`:"
     , ""
-    , "    " ++ modelToString finalModel
+    , "    " ++ app.updateResultToString updateResult
     , ""
     , "Failure:"
     , ""
@@ -363,14 +565,3 @@ indentLines message =
         |> String.lines
         |> List.map (\line -> "    " ++ line)
         |> String.join "\n"
-
-
-{-| Fuzz the model, always starting with initial `Model`s and then doing
-consecutive `update` calls with fuzzed `Msg`s.
-
-Guarantees the final model is reachable using your Msgs and thus "makes sense."
-
--}
-modelFuzzer : TestedApp model msg -> Fuzzer model
-modelFuzzer app =
-    testedModelToFuzzer app.model
