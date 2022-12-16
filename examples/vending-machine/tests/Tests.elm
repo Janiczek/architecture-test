@@ -139,7 +139,8 @@ buyingUnderPriceDoesntBuy =
     <|
         \_ _ finalModel ->
             finalModel.isProductVended
-                |> Expect.false "Product shouldn't be vended when buying with not enough money"
+                |> Expect.equal False
+                |> Expect.onFail "Product shouldn't be vended when buying with not enough money"
 
 
 takingProductTakesIt : Test
@@ -151,7 +152,8 @@ takingProductTakesIt =
     <|
         \_ _ finalModel ->
             finalModel.isProductVended
-                |> Expect.false "Product shouldn't be vended after taking it"
+                |> Expect.equal False
+                |> Expect.onFail "Product shouldn't be vended after taking it"
 
 
 buyingAboveOrEqPriceVendsProduct : Test
@@ -164,7 +166,8 @@ buyingAboveOrEqPriceVendsProduct =
     <|
         \_ _ finalModel ->
             finalModel.isProductVended
-                |> Expect.true "Product should be vended when buying with enough money"
+                |> Expect.equal True
+                |> Expect.onFail "Product should be vended when buying with enough money"
 
 
 buyingAboveOrEqPriceMakesCoinsCounterEmpty : Test

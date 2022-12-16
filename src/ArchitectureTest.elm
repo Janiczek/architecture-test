@@ -308,15 +308,15 @@ failureStringCommon : TestedApp model msg -> model -> msg -> model -> String -> 
 failureStringCommon { modelToString, msgToString } modelAfterMsgs msg finalModel message =
     [ "Random Model:"
     , ""
-    , "    " ++ modelToString modelAfterMsgs
+    , indentLines <| modelToString modelAfterMsgs
     , ""
     , "Tested Msg (failed its contract):"
     , ""
-    , "    " ++ msgToString msg
+    , indentLines <| msgToString msg
     , ""
     , "Resulting Model:"
     , ""
-    , "    " ++ modelToString finalModel
+    , indentLines <| modelToString finalModel
     , ""
     , "Failure:"
     , ""
@@ -331,15 +331,15 @@ failureStringInvariant : TestedApp model msg -> model -> List msg -> model -> St
 failureStringInvariant { modelToString, msgToString } initModel msgs finalModel message =
     [ "Starting model:"
     , ""
-    , "    " ++ modelToString initModel
+    , indentLines <| modelToString initModel
     , ""
     , "Msgs applied to it (failed a contract):"
     , ""
-    , "    [ " ++ (msgs |> List.map msgToString |> String.join ", ") ++ " ]"
+    , indentLines <| "[ " ++ (msgs |> List.map msgToString |> String.join "\n, ") ++ "\n]"
     , ""
     , "Resulting model:"
     , ""
-    , "    " ++ modelToString finalModel
+    , indentLines <| modelToString finalModel
     , ""
     , "Failure:"
     , ""
